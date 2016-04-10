@@ -35,7 +35,7 @@ class SC2Map
 
     function getVersionString(){ return $this->versionString; }
 
-    private static function parseSerializedData($string, &$numByte) 
+    static function parseSerializedData($string, &$numByte) 
     {
         $dataType = MPQReader::byte($string,$numByte);
         switch ($dataType) 

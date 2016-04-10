@@ -63,7 +63,7 @@ class MPQReader
         $first = true;
         $multiplier = 1;
 
-        for ($i = self::byte($string,$numByte),$bytes = 0; true; $i = MPQArchive::readByte($string,$numByte), $bytes++) 
+        for ($i = self::byte($string,$numByte),$bytes = 0; true; $i = self::byte($string,$numByte), $bytes++) 
         {
             $number += ($i & 0x7F) * pow(2,$bytes * 7);
 
