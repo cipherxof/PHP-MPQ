@@ -1,7 +1,7 @@
 <?php
 
-require 'mpq.crypto.php';
 require 'mpq.reader.php';
+require 'mpq.crypto.php';
 require 'mpq.gamedata.php';
 
 define("MPQ_HASH_TABLE_OFFSET", 0);
