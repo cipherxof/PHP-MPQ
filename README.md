@@ -6,23 +6,17 @@ Handle the MPQ (MoPaQ) format natively from PHP with support for Warcraft III &a
 
 require 'src/mpq.php';
 
-//$mpq = new MPQArchive("test.w3x");
-//$mpq = new MPQArchive("test.SC2Map");
-$mpq = new MPQArchive("War3Patch.mpq");
-
-if (!$mpq->isInitialized())
-    die("Failed to open archive.");
+try{
+    $mpq = new MPQArchive("wc3map.w3x", /*debug=*/true);
+}
+catch(MPQException $error){
+    die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
+}
 
 switch($mpq->getType())
 {
     case MPQArchive::TYPE_WC3MAP:
-        echo $mpq->getGameData()->getName() . '<br/>';
-
-        if ($mpq->hasFile("war3map.j"))
-            $file = "war3map.j";
-        else
-            $file = "Scripts\\war3map.j";
-
+        $file = ($mpq->hasFile("war3map.j") ? "war3map.j" : "Scripts\\war3map.j");
         $result = $mpq->readFile($file);
 
         if (!$result)
@@ -34,8 +28,6 @@ switch($mpq->getType())
 
         break;
     case MPQArchive::TYPE_SC2MAP:
-        echo $mpq->getFilename() . '<br/> v' . $mpq->getGameData()->getVersionString() . '<br/>';
-
         $file = "MapScript.galaxy";
         $result = $mpq->readFile($file);
 
@@ -57,8 +49,10 @@ switch($mpq->getType())
         file_put_contents(basename($file), $result);
 
         echo "$file extracted.<br/>";
+
         break;
 }
 
 ?>
 ```
+Based on https://code.google.com/archive/p/phpsc2replay/
