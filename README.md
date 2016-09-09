@@ -15,7 +15,7 @@ Basic Example
 require 'src/mpq.php';
 
 // open the archive
-$mpq = new MPQArchive("maps/wc3map.w3x");
+$mpq = new MPQArchive("wc3map.w3x");
 
 // set our file we want to extract
 $file_to_extract = "war3map.j";
@@ -38,7 +38,7 @@ require 'src/mpq.php';
 
 // open the archive and catch any errors
 try{
-    $mpq = new MPQArchive("maps/tkok.w3x");
+    $mpq = new MPQArchive("wc3map.w3x");
 }
 catch(MPQException $error){
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
