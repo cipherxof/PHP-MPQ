@@ -350,7 +350,10 @@ class MPQArchive
                 $crypt_key = (($crypt_key + $block_offset) ^ $filesize);
         }
 
-        $offset = $this->headerOffset;
+        $offset = 0;
+
+        if ($this->type == self::TYPE_WC3MAP)
+            $offset=0x200;
 
         // set the file position
         $fp = $block_offset + $offset;
