@@ -17,7 +17,7 @@ class MPQDebugger extends MPQArchive
 
     function hashTable()
     {
-        if (!$this->mpq->debug)
+        if (!$this->mpq->debug || !MPQArchive::$debugShowTables)
             return;
 
         $this->write("DEBUG: Hash table\n");
@@ -25,17 +25,17 @@ class MPQDebugger extends MPQArchive
 
         for ($i = 0; $i < $this->mpq->hashTableSize; $i++) 
         {
-            $filehashA = $this->mpq->hashtable[$i*4];
-            $filehashB = $this->mpq->hashtable[$i*4 +1];
+            $filehash_a = $this->mpq->hashtable[$i*4];
+            $filehash_b = $this->mpq->hashtable[$i*4 +1];
             $lanplat = $this->mpq->hashtable[$i*4 +2];
             $blockindex = $this->mpq->hashtable[$i*4 +3];
-            $this->write(sprintf("<pre>%08X %08X %08X %08X</pre>",$filehashA, $filehashB, $lanplat, $blockindex));
+            $this->write(sprintf("<pre>%08X %08X %08X %08X</pre>",$filehash_a, $filehash_b, $lanplat, $blockindex));
         }
     }
 
     function blockTable()
     {
-        if (!$this->mpq->debug)
+        if (!$this->mpq->debug || !MPQArchive::$debugShowTables)
             return;
 
         $this->write("DEBUG: Block table\n");
@@ -43,19 +43,19 @@ class MPQDebugger extends MPQArchive
 
         for ($i = 0;$i < $this->mpq->blockTableSize;$i++) 
         {
-            $blockIndex = $i * 4;
-            $blockOffset = $this->mpq->blocktable[$blockIndex] + $this->mpq->headerOffset;
-            $blockSize = $this->mpq->blocktable[$blockIndex + 1];
-            $fileSize = $this->mpq->blocktable[$blockIndex + 2];
-            $flags = $this->mpq->blocktable[$blockIndex + 3];
-            $this->write(sprintf("<pre>%08X %8d %8d %08X</pre>",$blockOffset, $blockSize, $fileSize, $flags));
+            $block_index = $i * 4;
+            $block_offset = $this->mpq->blocktable[$block_index] + $this->mpq->headerOffset;
+            $block_size = $this->mpq->blocktable[$block_index + 1];
+            $filesize = $this->mpq->blocktable[$block_index + 2];
+            $flags = $this->mpq->blocktable[$block_index + 3];
+            $this->write(sprintf("<pre>%08X %8d %8d %08X</pre>",$block_offset, $block_size, $filesize, $flags));
         }
     }
 
     // prints block table or hash table, $data is the data in an array of UInt32s
     public function printTable($data) 
     {
-        if (!$this->mpq->debug)
+        if (!$this->mpq->debug || !MPQArchive::$debugShowTables)
             return;
 
         $this->write("Hash table: HashA, HashB, Language+platform, Fileblockindex\n");
@@ -65,12 +65,12 @@ class MPQDebugger extends MPQArchive
 
         for ($i = 0; $i < $entries; $i++) 
         {
-            $blockIndex = $i * 4;
-            $blockOffset = $data[$blockIndex] + $this->mpq->headerOffset;
-            $blockSize = $data[$blockIndex + 1];
-            $fileSize = $data[$blockIndex + 2];
-            $flags = $data[$blockIndex + 3];
-            $this->write(sprintf("<pre>%08X %08X %08X %08X</pre>",$blockOffset, $blockSize, $fileSize, $flags));
+            $block_index = $i * 4;
+            $block_offset = $data[$block_index] + $this->mpq->headerOffset;
+            $block_size = $data[$block_index + 1];
+            $filesize = $data[$block_index + 2];
+            $flags = $data[$block_index + 3];
+            $this->write(sprintf("<pre>%08X %08X %08X %08X</pre>",$block_offset, $block_size, $filesize, $flags));
         }
     }
 }

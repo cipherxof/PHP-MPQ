@@ -1,4 +1,7 @@
 <?php
+/*
+    Created by TriggerHappy
+*/
 
 require __DIR__ . '/mpq.debugger.php';
 require __DIR__ . '/mpq.reader.php';
@@ -35,7 +38,8 @@ class MPQArchive
     private $map = null;
 
     private $fileData;
-    private $archiveSize;
+    private $formatVersion;
+    private $archiveSize, $headerSize;
 
     protected $hashtable, $blocktable = NULL;
     protected $hashTableSize, $blockTableSize = 0;
@@ -46,6 +50,8 @@ class MPQArchive
 
     public $debugger;
     public $debug;
+
+    public static $debugShowTables = true;
 
     function __construct($filename, $debug=false) 
     {
@@ -85,32 +91,29 @@ class MPQArchive
     function getHashTable() { return $this->hashtable; }
     function getBlockTable() { return $this->blocktable; }
     function getGameData(){ return $this->map; }
-    function getFileSize($filename) { $r=self::getFileInfo($filename); return $r['filesize']; }
+    function getfilesize($filename) { $r=self::getFileInfo($filename); return $r['filesize']; }
     function hasFile($filename) { $r=self::getFileInfo($filename); return $r['filesize'] > 0; }
 
     function parseHeader() 
     {
+        $header_parsed = false;
         $fp = 0;
-        $headerParsed = false;
-        $foundHeader = false;
 
-        while (!$headerParsed) 
+        while (!$header_parsed)
         {
             $magic = MPQReader::bytes($this->fileData, $fp, 4);
 
-            // check if the header is something we can read
             if (strlen($magic[1]) == 0)
-                throw new MPQException($this, "No support for corrupted headers, yet.");
+                throw new MPQException($this, "Unable to read the MPQ header.");
 
             $byte = unpack("c4", $magic);
 
-            if (($byte[1] == 0x48) || ($byte[2] == 0x4D) || ($byte[3] == 0x33)) 
+            if (($byte[1] == 0x48) || ($byte[2] == 0x4D) || ($byte[3] == 0x33)) // Warcraft III
             {
-                // store the archive type
                 $this->type=self::TYPE_WC3MAP;
 
-                // TODO: support for spazzler
-                $offset=0x600;
+                // TODO: Add support for spazzler.
+                $offset   = 0x600;
                 $spazzler = MPQReader::bytes($this->fileData, $offset, 12);
 
                 if (strrpos($spazzler, "SPAZZLER") !== false)
@@ -118,40 +121,51 @@ class MPQArchive
 
                 $fp+=4;
 
-                // find the name of the map
-                $mapname = "";
-                while ( ($s = MPQReader::byte($this->fileData, $fp)) != 0) // read until we find zero
-                    $mapname .= chr($s);
+                // Read and store information about the map.
+                $map_name = "";
 
-                // store map data (name, flags, playercount)
-                $this->map = new WC3Map($mapname, MPQReader::UInt32($this->fileData, $fp), MPQReader::UInt32($this->fileData, $fp));
+                while ( ($s = MPQReader::byte($this->fileData, $fp)) != 0)
+                    $map_name .= chr($s);
 
-                // find the header section
-                $headerOffset = $fp;
+                $flags   = MPQReader::UInt32($this->fileData, $fp);
+                $players = MPQReader::UInt32($this->fileData, $fp);
+
+                $this->map = new WC3Map($map_name, $flags, $players);
+
+                // Search the first 512 bytes for the start of the header,
+                // which should begin with "MPQ" in ASCII.
+                $this->headerOffset = $fp;
+
                 for($i=0; $i<0x200; $i++)
                 {
                     if (MPQReader::byte($this->fileData, $fp) == 77)
                     {
-                        $headerOffset=$i;
+                        $this->headerOffset = $i;
+                        $found_header = true;
+
                         $fp--;
-                        $foundHeader=true;
                         break;
                     }
                 }
 
-                if (!$foundHeader) $fp=0x200; else $this->debugger->write(sprintf("Found header at %08X", $fp));
+                if (!$found_header)
+                    $fp = 0x200;
 
-                $fp+=8;
-                $this->archiveSize = MPQReader::UInt32($this->fileData, $fp);
-                $formatVersion = MPQReader::UInt16($this->fileData, $fp);
-                $sectorSizeShift = MPQReader::UInt16($this->fileData, $fp);
-                $this->sectorSize = 512 * (1 << $sectorSizeShift);
-                $this->hashTableOffset = MPQReader::UInt32($this->fileData, $fp) + 0x200;
+                $this->debugger->write(sprintf( ($found_header ? "Found header at %08X" : "Could not find header, defaulting to %08X"), $fp) );
+
+                $fp+=4;
+
+                // Finish storing the header data.
+                $this->headerSize       = MPQReader::UInt32($this->fileData, $fp);
+                $this->archiveSize      = MPQReader::UInt32($this->fileData, $fp);
+                $this->formatVersion    = MPQReader::UInt16($this->fileData, $fp);
+                $this->sectorSize       = 512 * (1 << MPQReader::UInt16($this->fileData, $fp));
+                $this->hashTableOffset  = MPQReader::UInt32($this->fileData, $fp) + 0x200;
                 $this->blockTableOffset = MPQReader::UInt32($this->fileData, $fp) + 0x200;
-                $this->hashTableSize = MPQReader::UInt32($this->fileData, $fp);
-                $this->blockTableSize = MPQReader::UInt32($this->fileData, $fp);
+                $this->hashTableSize    = MPQReader::UInt32($this->fileData, $fp);
+                $this->blockTableSize   = MPQReader::UInt32($this->fileData, $fp);
 
-                $headerParsed = true;
+                $header_parsed = true;
             }
             elseif ((($byte[1] == 0x4D) || ($byte[2] == 0x50) || ($byte[3] == 0x51)))
             {
@@ -159,13 +173,12 @@ class MPQArchive
                 {
                     $this->debugger->write(sprintf("Found user data block at %08X", $fp));
 
-                    $uDataMaxSize = MPQReader::UInt32($this->fileData, $fp);
-                    $headerOffset = MPQReader::UInt32($this->fileData, $fp);
-                    $this->headerOffset = $headerOffset;
-                    $uDataSize = MPQReader::UInt32($this->fileData, $fp);
-                    $uDataStart = $fp;
+                    $udata_max_size     = MPQReader::UInt32($this->fileData, $fp);
+                    $this->headerOffset = MPQReader::UInt32($this->fileData, $fp);
+                    $udata_size         = MPQReader::UInt32($this->fileData, $fp);
+                    $udata_start        = $fp;
 
-                    // Check if it's a SC2 map
+                    // Check if it's a SC2 map.
                     $this->map = new SC2Map(SC2Map::parseSerializedData($this->fileData,$fp));
 
                     if ($this->map->getVersionString() != null)
@@ -173,29 +186,24 @@ class MPQArchive
                     else
                         $this->map = null;
                     
-                    $fp = $headerOffset;
+                    $fp = $this->headerOffset;
                 }
                 else if ($byte[4] == 26) // header (1Ah)
                 {
                     $this->debugger->write(sprintf("Found header at %08X", $fp));
 
-                    $headerSize = MPQReader::UInt32($this->fileData, $fp);
-                    $this->archiveSize = MPQReader::UInt32($this->fileData, $fp);
-                    $formatVersion = MPQReader::UInt16($this->fileData, $fp);
-                    $sectorSizeShift = MPQReader::byte($this->fileData, $fp);
-                    $sectorSize = 512 * pow(2,$sectorSizeShift);
-                    $this->sectorSize = $sectorSize;
-
-                    if (!isset($headerOffset))
-                        $headerOffset=$this->headerOffset;
+                    $this->headerSize    = MPQReader::UInt32($this->fileData, $fp);
+                    $this->archiveSize   = MPQReader::UInt32($this->fileData, $fp);
+                    $this->formatVersion = MPQReader::UInt16($this->fileData, $fp);
+                    $this->sectorSize    = 512 * pow(2, MPQReader::byte($this->fileData, $fp));
                     
                     $fp++;
-                    $this->hashTableOffset = MPQReader::UInt32($this->fileData, $fp) + $headerOffset;
-                    $this->blockTableOffset = MPQReader::UInt32($this->fileData, $fp) + $headerOffset; 
-                    $this->hashTableSize = MPQReader::UInt32($this->fileData, $fp);
-                    $this->blockTableSize = MPQReader::UInt32($this->fileData, $fp);
-                    
-                    $headerParsed = true;
+                    $this->hashTableOffset  = MPQReader::UInt32($this->fileData, $fp) + $this->headerOffset;
+                    $this->blockTableOffset = MPQReader::UInt32($this->fileData, $fp) + $this->headerOffset; 
+                    $this->hashTableSize    = MPQReader::UInt32($this->fileData, $fp);
+                    $this->blockTableSize   = MPQReader::UInt32($this->fileData, $fp);
+
+                    $header_parsed = true;
                 }
                 else 
                 {
@@ -211,36 +219,55 @@ class MPQArchive
 
         $this->debugger->write(sprintf("Hash table offset: %08X, Block table offset: %08X", $this->hashTableOffset, $this->blockTableOffset));
 
-        // read and decode the hash table
-        $fp = $this->hashTableOffset;
-        $hashSize = $this->hashTableSize * 4; // hash table size in 4-byte chunks
-        $data = array();
+        // Read and decrypt the hash table in 4-byte chunks.
+        $fp         = $this->hashTableOffset;
+        $hashSize   = $this->hashTableSize * 4;
+        $data       = array();
 
         for ($i = 0;$i < $hashSize; $i++)
             $data[$i] = MPQReader::UInt32($this->fileData, $fp);
 
-        $this->debugger->write("Encrypted hash table:");
-        $this->debugger->printTable($data);
+        if (MPQArchive::$debugShowTables)
+        {
+            $this->debugger->write("Encrypted hash table:");
+            $this->debugger->printTable($data);
+        }
 
         $this->hashtable = MPQCrypto::decrypt($data, MPQCrypto::hashString("(hash table)", MPQ_HASH_FILE_KEY));
         $this->debugger->hashTable();
 
-        // read and decode the block table
-        $fp = $this->blockTableOffset;
-        $blockSize = $this->blockTableSize * 4; // block table size in 4-byte chunks
-        $data = array();
+        // Read and decrypt the block table in 4-byte chunks.
+        $fp         = $this->blockTableOffset;
+        $blockSize  = $this->blockTableSize * 4;
+        $data       = array();
 
         for ($i = 0;$i < $blockSize;$i++)
             $data[$i] = MPQReader::UInt32($this->fileData, $fp);
 
-        $this->debugger->write("Encrypted block table:");
-        $this->debugger->printTable($data);
+        if (MPQArchive::$debugShowTables)
+        {
+            $this->debugger->write("Encrypted block table:");
+            $this->debugger->printTable($data);
+        }
 
         $this->blocktable = MPQCrypto::decrypt($data, MPQCrypto::hashString("(block table)", MPQ_HASH_FILE_KEY));
         $this->debugger->blockTable();
 
         $this->initialized = true;
         
+        // One last check to see if the archive is a SC2Map.
+        if ($this->type == self::TYPE_DEFAULT && $this->hasFile("DocumentHeader"))
+        {
+            $file = $this->readFile("DocumentHeader");
+
+            $this->map = new SC2Map();
+
+            if (strlen($file) > 0 && $this->map->parseDocumentHeader($file))
+                $this->type = self::TYPE_SC2MAP;
+            else
+                $this->map = null;
+        }
+
         return true;
     }
     
@@ -252,53 +279,53 @@ class MPQArchive
             return false;
         }
 
-        $hashA = MPQCrypto::hashString($filename, MPQ_HASH_NAME_A);
-        $hashB = MPQCrypto::hashString($filename, MPQ_HASH_NAME_B);
-        $hashStart = MPQCrypto::hashString($filename, MPQ_HASH_TABLE_OFFSET) & ($this->hashTableSize - 1);
+        $hash_a     = MPQCrypto::hashString($filename, MPQ_HASH_NAME_A);
+        $hash_b     = MPQCrypto::hashString($filename, MPQ_HASH_NAME_B);
+        $hash_start = MPQCrypto::hashString($filename, MPQ_HASH_TABLE_OFFSET) & ($this->hashTableSize - 1);
+        $block_size = -1;
 
-        $blockSize = -1;
-        $x = $hashStart;
+        $x = $hash_start;
         do 
         {
             if (($this->hashtable[$x*4 + 3] == MPQ_HASH_ENTRY_DELETED) || ($this->hashtable[$x*4 + 3] == MPQ_HASH_ENTRY_EMPTY)) 
                 return false;
 
-            if (($this->hashtable[$x*4] == $hashA) && ($this->hashtable[$x*4 + 1] == $hashB)) // found file
+            if (($this->hashtable[$x*4] == $hash_a) && ($this->hashtable[$x*4 + 1] == $hash_b)) // found file
             {
-                $blockIndex = ($this->hashtable[($x *4) + 3]) *4;
-                $blockOffset = $this->blocktable[$blockIndex] + $this->headerOffset;
-                $blockSize = $this->blocktable[$blockIndex + 1];
-                $fileSize = $this->blocktable[$blockIndex + 2];
-                $flags = $this->blocktable[$blockIndex + 3];
+                $block_index    = ($this->hashtable[($x *4) + 3]) *4;
+                $block_offset   = $this->blocktable[$block_index];
+                $block_size     = $this->blocktable[$block_index + 1];
+                $filesize       = $this->blocktable[$block_index + 2];
+                $flags          = $this->blocktable[$block_index + 3];
+
                 break;
             }
 
             $x = ($x + 1) % $this->hashTableSize;
-        } while ($x != $hashStart);
+        } while ($x != $hash_start);
 
-        if ($blockSize == -1) 
+        if ($block_size == -1) 
         {
             $this->debugger->write("Did not find file $filename in archive");
             return false;
         }
 
-        return array('size'=>$blockSize, 'index'=>$blockIndex, 'offset'=>$blockOffset, 'filesize'=>$fileSize, 'flags'=>$flags);
+        return array('size'=>$block_size, 'index'=>$block_index, 'offset'=>$block_offset, 'filesize'=>$filesize, 'flags'=>$flags);
     }
 
     function readFile($filename) 
     {
-        $fileInfo = self::getFileInfo($filename);
+        $file_info = self::getFileInfo($filename);
 
-        if (!$fileInfo) 
+        if ($file_info == false) 
             return false;
 
-        $blockSize = $fileInfo['size'];
-        $blockIndex = $fileInfo['index'];
-        $blockOffset = $fileInfo['offset'];
-        $fileSize = $fileInfo['filesize'];
-        $flags = $fileInfo['flags'];
+        $block_size   = $file_info['size'];
+        $block_index  = $file_info['index'];
+        $block_offset = $file_info['offset'];
+        $filesize     = $file_info['filesize'];
+        $flags        = $file_info['flags'];
 
-        // set flags
         $flag_file       = $flags & self::FLAG_FILE;
         $flag_checksums  = $flags & self::FLAG_CHECKSUMS;
         $flag_deleted    = $flags & self::FLAG_DELETED;
@@ -308,115 +335,114 @@ class MPQArchive
         $flag_compressed = $flags & self::FLAG_COMPRESSED;
         $flag_imploded   = $flags & self::FLAG_IMPLODED;
         
-        $this->debugger->write(sprintf("Found $filename with flags %08X, block offset %08X, block size %d and filesize %d", $flags, $blockOffset,$blockSize,$fileSize));
+        $this->debugger->write(sprintf("Found $filename with flags %08X, block offset %08X, block size %d and filesize %d", $flags, $block_offset,$block_size,$filesize));
         
-        if (!$flag_file) return false;
+        if (!$flag_file) 
+            return false;
 
-        // generate encryption key if the file is encrpyted
+        // Generate an encryption key if the file is encrpyted.
         if ($flag_encrypted)
         {
-            $filename = basename($filename);
-            $cryptKey = MPQCrypto::hashString($filename, MPQ_HASH_FILE_KEY);
+            $filename = basename(str_replace('\\', '/', $filename));
+            $crypt_key = MPQCrypto::hashString($filename, MPQ_HASH_FILE_KEY);
 
-            // adjusted encryption key
             if ($flag_hEncrypted)
-                $cryptKey = (($cryptKey + $blockOffset) ^ $fileSize);
+                $crypt_key = (($crypt_key + $block_offset) ^ $filesize);
         }
 
-        $offset = 0;
-        if ($this->type == self::TYPE_WC3MAP)
-            $offset=0x200;
+        $offset = $this->headerOffset;
 
         // set the file position
-        $fp = $blockOffset + $offset;
+        $fp = $block_offset + $offset;
 
         // find the sector offsets
         if ($flag_checksums || !$flag_singleunit)
         {
             // calculate how many sectors there are
-            $sector_count=ceil($fileSize / $this->sectorSize);
+            $sector_count=ceil($filesize / $this->sectorSize);
 
             // add each offset to the array
             for ($i = 0; $i <= $sector_count; $i++) 
             {
                 $sectors[$i] = MPQReader::UInt32($this->fileData, $fp);
-                $blockSize -= 4;
+                $block_size -= 4;
             }
         }
         else 
         {
             $sectors[] = 0;
-            $sectors[] = $blockSize;
+            $sectors[] = $block_size;
             $sector_count=count($sectors)-1;
         }
 
         // decrypt offsets if required
         if ($flag_encrypted)
-            $sectors = MPQCrypto::decrypt($sectors, uPlus($cryptKey, -1));
+            $sectors = MPQCrypto::decrypt($sectors, uPlus($crypt_key, -1));
 
         $output = "";
 
         // loop through each sector
         for ($i = 0; $i < $sector_count; $i++) 
         {
-            $sectorLen = $sectors[$i + 1] - $sectors[$i];
+            $sector_len = $sectors[$i + 1] - $sectors[$i];
 
-            if ($sectorLen == 0)
-                $sectorLen = $blockSize;
+            if ($sector_len == 0)
+                $sector_len = $blockSize;
 
-            if ($sectorLen == 0) break;
+            if ($sector_len == 0) 
+                break;
 
             // calculate the sector position
-            $fp = ($blockOffset + $offset) + $sectors[$i];
+            $fp = ($block_offset + $offset) + $sectors[$i];
 
             // decrypt if necessary
             if ($flag_encrypted) 
             {
                 $sector = array();
-                $sectorLen >>= 2;
+                $sector_len >>= 2;
 
-                if ($sectorLen > $fileSize)
+                if ($sector_len > $filesize)
                     return false;
 
                 // unpack and read the encrypted sector
-                for($x=0; $x<=$sectorLen; $x++)
+                for($x=0; $x<=$sector_len; $x++)
                     $sector[] = MPQReader::UInt32($this->fileData, $fp); // store it
 
                 // decrypt the array
-                $sector = MPQCrypto::decrypt($sector, (int)($cryptKey + $i));
+                $sector = MPQCrypto::decrypt($sector, (int)($crypt_key + $i));
 
                 // pack the decrypted sector data
                 for($x=0; $x<count($sector); $x++)
                     $sector[$x] = pack("V", $sector[$x]);
 
-                $sectorData = implode($sector);
+                $sector_data = implode($sector);
 
             }
             else
             {
-                $sectorData = MPQReader::bytes($this->fileData, $fp, $sectorLen);
+                $sector_data = MPQReader::bytes($this->fileData, $fp, $sector_len);
             }
 
-            $this->debugger->write(sprintf("Got %d bytes of sector data", strlen($sectorData)));
+            $this->debugger->write(sprintf("Got %d bytes of sector data", strlen($sector_data)));
 
             if ($flag_compressed)
             {
-                $numByte = 0;
-                $compressionType = MPQReader::byte($sectorData, $numByte);
-
-                switch ($compressionType) 
+                $num_byte = 0;
+                $compression_type = MPQReader::byte($sector_data, $num_byte);
+                
+                switch ($compression_type) 
                 {
                     case 0x02:
-                        $sectorData = substr($sectorData,1);
+                        $sector_data = substr($sector_data,1);
 
-                        $this->debugger->write(sprintf("Found compresstion type: %d (gzlib)", $compressionType));
+                        $this->debugger->write(sprintf("Found compresstion type: %d (gzlib)", $compression_type));
 
-                        $decompressed = gzinflate(substr($sectorData, 2, strlen($sectorData) - 2));
+                        $decompressed = gzinflate(substr($sector_data, 2, strlen($sector_data) - 2));
 
                         if (!$decompressed)
                         {
-                            $this->debugger->write(sprintf("Failed to decompress with compression type: %d", $compressionType));
-                            $output .= $sectorData;
+                            $this->debugger->write(sprintf("Failed to decompress with compression type: %d", $compression_type));
+                            $output .= $sector_data;
                             break;
                         }
 
@@ -424,20 +450,22 @@ class MPQArchive
 
                         break;
                     case 0x10:
-                        $sectorData = substr($sectorData,1);              
-                        $output .= bzdecompress($sectorData);
+                        $sector_data = substr($sector_data,1);              
+                        $output .= bzdecompress($sector_data);
+
                         break;
                     default:
-                        $output .= $sectorData; // sector is uncompressed
+                        $output .= $sector_data; // sector is uncompressed
+
                         break;
                 }
             }
-            else $output .= $sectorData;
+            else $output .= $sector_data;
         }
 
-        if (strlen($output) != $fileSize) 
+        if (strlen($output) != $filesize) 
         {
-            $err = sprintf("Decrypted/uncompressed filesize(%d) does not match original file size(%d)",strlen($output),$fileSize);
+            $err = sprintf("Decrypted/uncompressed filesize(%d) does not match original file size(%d)",strlen($output),$filesize);
             $err .= "<br/>$output";
             $this->debugger->write($err);
             return false;

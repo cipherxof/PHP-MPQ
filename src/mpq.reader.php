@@ -2,68 +2,68 @@
 
 class MPQReader
 {
-    static function byte(&$string, &$numByte) 
+    static function byte(&$string, &$num_byte) 
     {
-        if ($numByte >= strlen($string))
+        if ($num_byte >= strlen($string))
             return false;
 
-        $tmp = unpack("C",substr($string,$numByte,1));
-        $numByte++;
+        $tmp = unpack("C",substr($string,$num_byte,1));
+        $num_byte++;
 
         return $tmp[1];
     }
 
-    static function bytes($string, &$numByte, $length) 
+    static function bytes($string, &$num_byte, $length) 
     {
-        if (strlen($string) - $numByte - $length < 0) 
+        if (strlen($string) - $num_byte - $length < 0) 
             return false;
 
-        $tmp = substr($string,$numByte,$length);
-        $numByte += $length;
+        $tmp = substr($string,$num_byte,$length);
+        $num_byte += $length;
 
         return $tmp;
     }
 
-    static function UInt8($string, &$numByte) 
+    static function UInt8($string, &$num_byte) 
     {
-        if (strlen($string) - $numByte - 1 < 0)
+        if (strlen($string) - $num_byte - 1 < 0)
             return false;
 
-        $tmp = unpack("c",substr($string,$numByte));
-        $numByte += 1;
+        $tmp = unpack("c",substr($string,$num_byte));
+        $num_byte += 1;
 
         return $tmp[1];
     }
 
-    static function UInt16($string, &$numByte) 
+    static function UInt16($string, &$num_byte) 
     {
-        if (strlen($string) - $numByte - 2 < 0)
+        if (strlen($string) - $num_byte - 2 < 0)
             return false;
 
-        $tmp = unpack("v",substr($string,$numByte,2));
-        $numByte += 2;
+        $tmp = unpack("v",substr($string,$num_byte,2));
+        $num_byte += 2;
 
         return $tmp[1];
     }
 
-    static function UInt32($string, &$numByte) 
+    static function UInt32($string, &$num_byte) 
     {
-        if (strlen($string) - $numByte - 4 < 0)
+        if (strlen($string) - $num_byte - 4 < 0)
             return false;
 
-        $tmp = unpack("V",substr($string,$numByte,4));
-        $numByte += 4;
+        $tmp = unpack("V",substr($string,$num_byte,4));
+        $num_byte += 4;
 
         return $tmp[1];
     }
 
-    static function VLFNumber($string, &$numByte) 
+    static function VLFNumber($string, &$num_byte) 
     {
         $number = 0;
         $first = true;
         $multiplier = 1;
 
-        for ($i = self::byte($string,$numByte),$bytes = 0; true; $i = self::byte($string,$numByte), $bytes++) 
+        for ($i = self::byte($string,$num_byte),$bytes = 0; true; $i = self::byte($string,$num_byte), $bytes++) 
         {
             $number += ($i & 0x7F) * pow(2,$bytes * 7);
 

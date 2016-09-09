@@ -67,9 +67,9 @@ class MPQCrypto
     {
         $seed1 = 0x7FED7FED;
         $seed2 = ((0xEEEE << 16) | 0xEEEE);
-        $strLen = strlen($string);
+        $str_len = strlen($string);
         
-        for ($i = 0;$i < $strLen;$i++) 
+        for ($i = 0;$i < $str_len;$i++) 
         {
             $next = ord(strtoupper(substr($string, $i, 1)));
 
