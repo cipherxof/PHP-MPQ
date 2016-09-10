@@ -95,14 +95,14 @@ class MPQArchive
             fclose($this->fp);
     }
 
-    function isInitialized() { return $this->initialized === true; }
-    function getType() { return $this->type; }
-    function getFilename() { return $this->filename; }
-    function getHashTable() { return $this->hashtable; }
-    function getBlockTable() { return $this->blocktable; }
-    function getGameData(){ return $this->map; }
-    function getfilesize($filename) { $r=self::getFileInfo($filename); return $r['filesize']; }
-    function hasFile($filename) { $r=self::getFileInfo($filename); return $r['filesize'] > 0; }
+    public function isInitialized() { return $this->initialized === true; }
+    public function getType() { return $this->type; }
+    public function getFilename() { return $this->filename; }
+    public function getHashTable() { return $this->hashtable; }
+    public function getBlockTable() { return $this->blocktable; }
+    public function getGameData(){ return $this->map; }
+    public function getfilesize($filename) { $r=self::getFileInfo($filename); return $r['filesize']; }
+    public function hasFile($filename) { $r=self::getFileInfo($filename); return $r['filesize'] > 0; }
 
     public function parseHeader() 
     {
@@ -147,31 +147,28 @@ class MPQArchive
 
                 // Search the first 512 bytes (in reverse) for the
                 // start of the header, which should begin with "MPQ" in ASCII.
-                $fp = 0x200;
-
                 for($i=0x200; $i>=0; $i--)
                 {
+                    $fp = $i;
+
                     if (MPQReader::byte($this->fileData, $fp) == 77)
                     {
                         $this->headerOffset = $i;
                         $found_header = true;
 
-                        $fp++;
                         break;
                     }
-                }   
+                }
 
                 // If the header wasn't found use the default value.
                 if (!$found_header)
-                {
                     $this->headerOffset = $fp;
-                }
 
                 $this->debugger->write(sprintf( ($found_header ? "Found header at %08X" : "Could not find header, defaulting to %08X"), $fp) );
 
+                // Finish storing the header data.
                 $fp = $this->headerOffset + 4;
 
-                // Finish storing the header data.
                 $this->headerSize       = MPQReader::UInt32($this->fileData, $fp);
                 $this->archiveSize      = MPQReader::UInt32($this->fileData, $fp);
                 $this->formatVersion    = MPQReader::UInt16($this->fileData, $fp);
@@ -195,7 +192,7 @@ class MPQArchive
                     $udata_start        = $fp;
 
                     // Check if it's a SC2 map.
-                    $this->map = new SC2Map();
+                    $this->map = new SC2Map($this);
                     $data = SC2Map::parseSerializedData($this->fileData,$fp);
 
                     if ($data != false && $this->map->getVersionString() != null)
@@ -287,17 +284,20 @@ class MPQArchive
 
         $this->initialized = true;
         
-        // One last check to see if the archive is a SC2Map.
         if ($this->type == self::TYPE_DEFAULT && $this->hasFile("DocumentHeader"))
         {
             $file = $this->readFile("DocumentHeader");
 
-            $this->map = new SC2Map();
+            $this->map = new SC2Map($this);
 
             if (strlen($file) > 0 && $this->map->parseDocumentHeader($file))
                 $this->type = self::TYPE_SC2MAP;
             else
                 $this->map = null;
+        }
+        elseif ($this->type == self::TYPE_WC3MAP)
+        {
+            $this->map->parseData();
         }
 
         return true;

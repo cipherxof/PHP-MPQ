@@ -33,19 +33,18 @@ Advanced Example
 
 ```php
 <?php
+
 require 'src/mpq.php';
 
 MPQArchive::$debugShowTables = false;
 
 // open the archive and catch any errors
 try{
-    $mpq = new MPQArchive("wc3map.w3x", /*debug=*/true);
+    $mpq = new MPQArchive("maps/sc2.SC2Map", false);
 }
 catch(MPQException $error){
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
 }
-
-$result = false;
 
 // process our archive according to what type it is
 switch($mpq->getType())
@@ -63,6 +62,7 @@ switch($mpq->getType())
 
         break;
 
+    // MPQ
     default:
         $file = "(listfile)";
 
@@ -78,6 +78,8 @@ if (!$result)
 // check if any files were extracted
 if ($result != false)
 {
+    $output = "";
+
     // write our extracted file to disk
     file_put_contents(basename($file), $result);
 
@@ -86,13 +88,20 @@ if ($result != false)
 
     if ($map != null)
     {
-        // print some details about the game
-        echo $map->getName() . "<br/>";
+        // get some details about the game
+        $output .= $map->getName() . "\n";
+        $output .= "by " . $map->getAuthor() . "\n";
+        $output .= "\n" . $map->getDescription() . "\n\n";
     }
 
-    // show the extracted file
-    echo nl2br("$file extracted.\n\n");
-    echo nl2br($result);
+    $output .= "$file extracted.\n\n";
+
+    // print the output
+    if (php_sapi_name() == 'cli')
+        echo $output;
+    else
+        echo nl2br($output);
+
 }
 
 ?>
