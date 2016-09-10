@@ -34,55 +34,48 @@ Advanced Example
 ```php
 <?php
 
+<?php
 require 'src/mpq.php';
+
+MPQArchive::$debugShowTables = false;
 
 // open the archive and catch any errors
 try{
-    $mpq = new MPQArchive("wc3map.w3x");
+    $mpq = new MPQArchive("maps/tkok.w3x", false);
 }
 catch(MPQException $error){
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
 }
+
+$result = false;
 
 // process our archive according to what type it is
 switch($mpq->getType())
 {   
     // Warcraft III
     case MPQArchive::TYPE_WC3MAP:
-
         // maps can have their scripts in one of two places, so we check which
-        $file = ($mpq->hasFile("Scripts\\War3map.j") ? "Scripts\\War3map.j" : "war3map.j");
-
-        // try to extract the script
-        $result = $mpq->readFile($file);
-
-        if (!$result)
-            die("Failed to extract $file.\n");
+        $file   = ($mpq->hasFile("Scripts\\War3map.j") ? "Scripts\\War3map.j" : "war3map.j");
 
         break;
 
     // Starcraft II
     case MPQArchive::TYPE_SC2MAP:
-
-        // the script file for sc2 maps
         $file = "MapScript.galaxy";
-        $result = $mpq->readFile($file);
-
-        if (!$result)
-            die("Failed to extract $file.\n");
 
         break;
 
     default:
-
-        $file = "Scripts\\common.j";
-        $result = $mpq->readFile($file);
-
-        if (!$result)
-            die("Failed to extract $file.\n");
+        $file = "(listfile)";
 
         break;
 }
+
+// try to extract the script
+$result = $mpq->readFile($file);
+
+if (!$result)
+    die("Failed to extract $file.\n");
 
 // check if any files were extracted
 if ($result != false)
@@ -103,6 +96,8 @@ if ($result != false)
     echo nl2br("$file extracted.\n\n");
     echo nl2br($result);
 }
+
+?>
 
 ?>
 ```

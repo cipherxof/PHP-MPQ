@@ -31,7 +31,7 @@ class MPQArchive
     const FLAG_COMPRESSED = 0x00000200;
     const FLAG_IMPLODED   = 0x00000100;
 
-    private $filename;
+    private $filename, $filesize;
     private $fp;
     private $type = self::TYPE_DEFAULT;
 
@@ -64,11 +64,20 @@ class MPQArchive
 
         $this->filename = $filename;
 
+        // Initialize the cryptography table.
+        // This runs only once per session.
         if (!MPQCrypto::$table)
             MPQCrypto::initCryptTable();
 
+        // Read the archive in binary, and store the contents.
         $fp = fopen($filename, 'rb');
-        $contents = fread($fp, filesize($filename));
+        $this->filesize = filesize($filename);
+
+        // The filesize must be at least the minimum header size.
+        if ($this->filesize < MPQ_HEADER_SIZE_V1)
+            throw new MPQException($this, "$filename is too small.");
+
+        $contents = fread($fp, $this->filesize);
 
         if ($contents === false) 
             throw new MPQException($this, "Error opening file $filename for reading");
@@ -97,14 +106,13 @@ class MPQArchive
 
     public function parseHeader() 
     {
-        $end_of_search = strlen($this->fileData);
+        $header_parsed = false;
+        $fp            = 0;
+        $end_of_search = $this->filesize;
 
+        // Limit the header size to 130 MB
         if ($end_of_search > 0x08000000)
             $end_of_search = 0x08000000;
-
-        $fp = 0;
-
-        $header_parsed = false;
 
         while (!$header_parsed && $fp < $end_of_search)
         {
@@ -117,7 +125,7 @@ class MPQArchive
 
             if (($byte[1] == 0x48) || ($byte[2] == 0x4D) || ($byte[3] == 0x33)) // Warcraft III
             {
-                $this->type=self::TYPE_WC3MAP;
+                $this->type = self::TYPE_WC3MAP;
 
                 // TODO: Add support for spazzler.
                 $offset   = 0x600;
@@ -137,18 +145,18 @@ class MPQArchive
                 $this->map->flags      = MPQReader::UInt32($this->fileData, $fp);
                 $this->map->maxPlayers = MPQReader::UInt32($this->fileData, $fp);
 
-                // Search the first 512 bytes for the start of the header,
-                // which should begin with "MPQ" in ASCII.
-                $this->headerOffset = $fp;
+                // Search the first 512 bytes (in reverse) for the
+                // start of the header, which should begin with "MPQ" in ASCII.
+                $fp = 0x200;
 
-                for($i=0; $i<0x200; $i++)
+                for($i=0x200; $i>=0; $i--)
                 {
                     if (MPQReader::byte($this->fileData, $fp) == 77)
                     {
-                        $this->headerOffset += $i;
+                        $this->headerOffset = $i;
                         $found_header = true;
 
-                        $fp--;
+                        $fp++;
                         break;
                     }
                 }   
@@ -156,13 +164,12 @@ class MPQArchive
                 // If the header wasn't found use the default value.
                 if (!$found_header)
                 {
-                    $fp = 0x200;
                     $this->headerOffset = $fp;
                 }
 
                 $this->debugger->write(sprintf( ($found_header ? "Found header at %08X" : "Could not find header, defaulting to %08X"), $fp) );
 
-                $fp+=4;
+                $fp = $this->headerOffset + 4;
 
                 // Finish storing the header data.
                 $this->headerSize       = MPQReader::UInt32($this->fileData, $fp);
@@ -191,7 +198,7 @@ class MPQArchive
                     $this->map = new SC2Map();
                     $data = SC2Map::parseSerializedData($this->fileData,$fp);
 
-                    if ($ata != false && $this->map->getVersionString() != null)
+                    if ($data != false && $this->map->getVersionString() != null)
                     {
                         $this->type = self::TYPE_SC2MAP;
 
@@ -243,6 +250,9 @@ class MPQArchive
         $hash_size  = $this->hashTableSize * 4;
         $data       = array();
 
+        if ($hash_size > 100000)
+            $hash_size = 100000;
+        
         for ($i = 0;$i < $hash_size; $i++)
             $data[$i] = MPQReader::UInt32($this->fileData, $fp);
 
@@ -398,13 +408,13 @@ class MPQArchive
             $sector_count     = count($sector_offsets)-1;
         }
 
-        // Decrypt the offsets with if they are encrypted.
+        // Decrypt the offsets if they are encrypted.
         if ($flag_encrypted)
             $sector_offsets = MPQCrypto::decrypt($sector_offsets, uPlus($crypt_key, -1));
 
         $output = "";
 
-        // Loop through all of the sector offsets.
+        // Loop through all of the sectors.
         for ($i = 0; $i < $sector_count; $i++) 
         {
             $sector_len = $sector_offsets[$i + 1] - $sector_offsets[$i];
@@ -495,11 +505,6 @@ class MPQArchive
         }
 
         return $output;
-    }
-
-    public static function ConvertMpqHeaderToFormat4()
-    {
-
     }
 
     // saves the mpq data as a file.
