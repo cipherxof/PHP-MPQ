@@ -33,8 +33,6 @@ Advanced Example
 
 ```php
 <?php
-
-<?php
 require 'src/mpq.php';
 
 MPQArchive::$debugShowTables = false;
@@ -96,8 +94,6 @@ if ($result != false)
     echo nl2br("$file extracted.\n\n");
     echo nl2br($result);
 }
-
-?>
 
 ?>
 ```
