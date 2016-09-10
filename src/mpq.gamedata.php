@@ -1,16 +1,16 @@
 <?php
 
-class WC3Map
+class WC3Map extends MPQArchive
 {
-    private $name;
-    private $flags;
-    private $maxPlayers;
+    protected $name;
+    protected $flags;
+    protected $maxPlayers;
+    protected $archive;
 
-    function __construct($name, $flags, $players) 
+    function __construct($mpq) 
     {
-        $this->name=$name;
-        $this->flags=$flags;
-        $this->maxPlayers=$players;
+        $this->archive = $mpq;
+        $this->name = "";
     }
 
     function getName(){ return $this->name; }
