@@ -6,6 +6,8 @@ Currently supported:
 * Warcraft III Maps
 * Starcraft II Maps
 
+Demo: http://185.92.220.118/mapdb/
+
 Basic Example
 ==========
 
@@ -36,7 +38,7 @@ MPQArchive::$debugShowTables = false;
 
 // open the archive and catch any errors
 try{
-    $mpq = new MPQArchive("wc3map.w3x", /*debug=*/true);
+    $mpq = new MPQArchive("maps/tkok.w3x", /*debug=*/false);
 }
 catch(MPQException $error){
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
@@ -68,34 +70,31 @@ switch($mpq->getType())
 // try to extract the script
 $result = $mpq->readFile($file);
 
+// check if any files were extracted
 if (!$result)
     die("Failed to extract $file.\n");
 
-// check if any files were extracted
-if ($result != false)
+$output = "";
+
+// write our extracted file to disk
+file_put_contents(basename($file), $result);
+
+// check if the archive is a game
+$map = $mpq->getGameData();
+
+if ($map != null)
 {
-    $output = "";
-
-    // write our extracted file to disk
-    file_put_contents(basename($file), $result);
-
-    // check if the archive is a game
-    $map = $mpq->getGameData();
-
-    if ($map != null)
-    {
-        // get some details about the game
-        $output .= $map->getName() . "\n";
-        $output .= "by " . $map->getAuthor() . "\n";
-        $output .= "\n" . $map->getDescription() . "\n\n";
-    }
-
-    $output .= "$file extracted.\n\n$result";
-
-    // print the output
-    echo (php_sapi_name() == 'cli' ? $output : nl2br($output));
-
+    // get some details about the game
+    $output .= $map->getName() . "\n";
+    $output .= "by " . $map->getAuthor() . "\n";
+    $output .= "\n" . $map->getDescription() . "\n\n";
 }
+
+$output .= "$file extracted.\n\n$result";
+
+// print the output
+echo (php_sapi_name() == 'cli' ? $output : nl2br($output));
+
 ?>
 ```
 Based on https://code.google.com/archive/p/phpsc2replay/ and StormLib.
