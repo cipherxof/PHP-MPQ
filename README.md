@@ -38,7 +38,7 @@ MPQArchive::$debugShowTables = false;
 
 // open the archive and catch any errors
 try{
-    $mpq = new MPQArchive("maps/tkok.w3x", /*debug=*/false);
+    $mpq = new MPQArchive("wc3map.w3x", /*debug=*/true);
 }
 catch(MPQException $error){
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
