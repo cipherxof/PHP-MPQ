@@ -2,7 +2,6 @@
 /*
     Created by TriggerHappy
 */
-
 require __DIR__ . '/mpq.debugger.php';
 require __DIR__ . '/mpq.reader.php';
 require __DIR__ . '/mpq.crypto.php';
@@ -30,6 +29,8 @@ class MPQArchive
     const FLAG_ENCRYPTED  = 0x00010000;
     const FLAG_COMPRESSED = 0x00000200;
     const FLAG_IMPLODED   = 0x00000100;
+
+    const BLOCK_INDEX_MASK = 0x0000FFFF;
 
     private $filename, $filesize;
     private $fp;
@@ -69,7 +70,7 @@ class MPQArchive
         if (!MPQCrypto::$table)
             MPQCrypto::initCryptTable();
 
-        // Read the archive in binary, and store the contents.
+        // Read the archive in binary and store the contents.
         $fp = fopen($filename, 'rb');
         $this->filesize = filesize($filename);
 
@@ -123,16 +124,9 @@ class MPQArchive
 
             $byte = unpack("c4", $magic);
 
-            if (($byte[1] == 0x48) || ($byte[2] == 0x4D) || ($byte[3] == 0x33)) // Warcraft III
+            if (($byte[1] == 0x48) && ($byte[2] == 0x4D) && ($byte[3] == 0x33)) // Warcraft III
             {
                 $this->type = self::TYPE_WC3MAP;
-
-                // TODO: Add support for spazzler.
-                $offset   = 0x600;
-                $spazzler = MPQReader::bytes($this->fileData, $offset, 12);
-
-                if (strrpos($spazzler, "SPAZZLER") !== false)
-                    throw new MPQException($this, "No support for archives with spazzler protection, yet.");
 
                 $fp+=4;
 
@@ -145,26 +139,20 @@ class MPQArchive
                 $this->map->flags      = MPQReader::UInt32($this->fileData, $fp);
                 $this->map->maxPlayers = MPQReader::UInt32($this->fileData, $fp);
 
-                // Search the first 512 bytes (in reverse) for the
-                // start of the header, which should begin with "MPQ" in ASCII.
-                for($i=0x200; $i>=0; $i--)
+                // Search for the start of the header.
+                for($fp=0; $fp <= $end_of_search; $fp+=0x200-4)
                 {
-                    $fp = $i;
+                    $header_id = MPQReader::bytes($this->fileData, $fp, 4);
 
-                    if (MPQReader::byte($this->fileData, $fp) == 77)
+                    if ($header_id == "MPQ\x1A")
                     {
-                        $this->headerOffset = $i;
+                        $this->headerOffset = $fp-4;
                         $found_header = true;
-
                         break;
                     }
                 }
 
-                // If the header wasn't found use the default value.
-                if (!$found_header)
-                    $this->headerOffset = $fp;
-
-                $this->debugger->write(sprintf( ($found_header ? "Found header at %08X" : "Could not find header, defaulting to %08X"), $fp) );
+                $this->debugger->write(sprintf( ($found_header ? "Found header at %08X" : "Could not find header, defaulting to %08X"), $this->headerOffset) );
 
                 // Finish storing the header data.
                 $fp = $this->headerOffset + 4;
@@ -173,8 +161,8 @@ class MPQArchive
                 $this->archiveSize      = MPQReader::UInt32($this->fileData, $fp);
                 $this->formatVersion    = MPQReader::UInt16($this->fileData, $fp);
                 $this->sectorSize       = 512 * (1 << MPQReader::UInt16($this->fileData, $fp));
-                $this->hashTableOffset  = MPQReader::UInt32($this->fileData, $fp) + 0x200;
-                $this->blockTableOffset = MPQReader::UInt32($this->fileData, $fp) + 0x200;
+                $this->hashTableOffset  = MPQReader::UInt32($this->fileData, $fp) + $this->headerOffset;
+                $this->blockTableOffset = MPQReader::UInt32($this->fileData, $fp) + $this->headerOffset;
                 $this->hashTableSize    = MPQReader::UInt32($this->fileData, $fp);
                 $this->blockTableSize   = MPQReader::UInt32($this->fileData, $fp);
 
@@ -191,7 +179,7 @@ class MPQArchive
                     $udata_size         = MPQReader::UInt32($this->fileData, $fp);
                     $udata_start        = $fp;
 
-                    // Check if it's a SC2 map.
+                    // Check if the archive a Starcraft II map.
                     $this->map = new SC2Map($this);
                     $data = SC2Map::parseSerializedData($this->fileData,$fp);
 
@@ -228,10 +216,6 @@ class MPQArchive
 
                     $header_parsed = true;
                 }
-                else 
-                {
-                    throw new MPQException($this, "Could not find MPQ header");
-                }
             }
             else
             {
@@ -240,15 +224,16 @@ class MPQArchive
             }
         }
 
+        // Overflow protection (spazzler).
+        $this->hashTableSize    = ($this->hashTableSize & self::BLOCK_INDEX_MASK);
+        $this->blockTableSize   = ($this->blockTableSize & self::BLOCK_INDEX_MASK);
+
         $this->debugger->write(sprintf("Hash table offset: %08X, Block table offset: %08X", $this->hashTableOffset, $this->blockTableOffset));
 
         // Read and decrypt the hash table in 4-byte chunks.
         $fp         = $this->hashTableOffset;
         $hash_size  = $this->hashTableSize * 4;
         $data       = array();
-
-        if ($hash_size > 100000)
-            $hash_size = 100000;
         
         for ($i = 0;$i < $hash_size; $i++)
             $data[$i] = MPQReader::UInt32($this->fileData, $fp);
@@ -267,9 +252,6 @@ class MPQArchive
         $block_size = $this->blockTableSize * 4;
         $data       = array();
 
-        if ($block_size > 100000)
-            $block_size = 100000;
-
         for ($i = 0;$i < $block_size; $i++)
             $data[$i] = MPQReader::UInt32($this->fileData, $fp);
 
@@ -282,9 +264,11 @@ class MPQArchive
         $this->blocktable = MPQCrypto::decrypt($data, MPQCrypto::hashString("(block table)", MPQ_HASH_FILE_KEY));
         $this->debugger->blockTable();
 
+        // The archive is ready to be read from
         $this->initialized = true;
         
-        if ($this->type == self::TYPE_DEFAULT && $this->hasFile("DocumentHeader"))
+        // One more check to see if it's a Starcraft II map.
+        if ($this->type == self::TYPE_DEFAULT && ($this->hasFile("DocumentHeader") && $this->hasFile("Minimap.tga")))
         {
             $file = $this->readFile("DocumentHeader");
 
@@ -326,7 +310,7 @@ class MPQArchive
 
             if (($this->hashtable[$x*4] == $hash_a) && ($this->hashtable[$x*4 + 1] == $hash_b)) // found file
             {
-                $block_index    = ($this->hashtable[($x *4) + 3]) *4;
+                $block_index    = (($this->hashtable[($x *4) + 3]) *4);
                 $block_offset   = $this->blocktable[$block_index];
                 $block_size     = $this->blocktable[$block_index + 1];
                 $filesize       = $this->blocktable[$block_index + 2];

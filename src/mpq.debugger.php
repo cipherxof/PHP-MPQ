@@ -42,7 +42,7 @@ class MPQDebugger extends MPQArchive
         $this->write("Offset, Blocksize, Filesize, flags\n");
 
         for ($i = 0;$i < $this->mpq->blockTableSize;$i++) 
-        {
+        {   
             $block_index = $i * 4;
             $block_offset = $this->mpq->blocktable[$block_index] + $this->mpq->headerOffset;
             $block_size = $this->mpq->blocktable[$block_index + 1];
@@ -77,9 +77,11 @@ class MPQDebugger extends MPQArchive
 
 class MPQException extends Exception 
 { 
-    public function __construct($mpq, $message = null, $code = 0)
+    public function __construct($mpq, $message, $code = 0)
     {
-        $mpq->debugger->write($message);
+        if (isset($mpq->debugger))
+            $mpq->debugger->write($message);
+
         parent::__construct($message, $code);
     }
 }

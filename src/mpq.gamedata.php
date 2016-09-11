@@ -3,7 +3,7 @@
 require __DIR__ . '/mpq.wc3map.php';
 require __DIR__ . '/mpq.sc2map.php';
 
-class GameData
+class MPQGameData
 {
     public static function imageCreateFromTGA ( $filename, $return_array = 0 )
     {

@@ -73,6 +73,9 @@ class WC3Map extends MPQArchive
 
     public function readTriggerString($source)
     {
+    	if (strpos($source, "TRIGSTR_") === false)
+    		return $source;
+
     	if (!isset($this->wts))
     	{
     		if (!$this->archive->hasFile('war3map.wts'))
@@ -84,7 +87,7 @@ class WC3Map extends MPQArchive
 	    $num = explode("TRIGSTR_", $source);
 
 	    if (count($num) < 1)
-	        return $source;
+	        return false;
 
 	    $num = intval($num[1]);
 
