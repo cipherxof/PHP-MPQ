@@ -57,6 +57,16 @@ class MPQReader
         return $tmp[1];
     }
 
+    static function String($string, &$num_byte) 
+    {
+        $out = "";
+
+        while ( ($s = MPQReader::byte($string, $num_byte)) != 0)
+            $out .= chr($s);
+
+        return $out;
+    }
+
     static function VLFNumber($string, &$num_byte) 
     {
         $number = 0;

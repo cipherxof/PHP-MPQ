@@ -5,6 +5,35 @@ require __DIR__ . '/mpq.sc2map.php';
 
 class MPQGameData
 {
+    public static function getWar3Tileset($char)
+    {
+        $tilesets = array(
+            'A' =>   'Ashenvale',
+            'B' =>   'Barrens',
+            'C' =>   'Felwood',
+            'D' =>   'Dungeon',
+            'F' =>   'Lordaeron Fall',
+            'G' =>   'Underground',
+            'L' =>   'Lordaeron Summer',
+            'N' =>   'Northrend',
+            'Q' =>   'Village Fall',
+            'V' =>   'Village',
+            'W' =>   'Lordaeron Winter',
+            'X' =>   'Dalaran',
+            'Y' =>   'Cityscape',
+            'Z' =>   'Sunken Ruins',
+            'I' =>   'Icecrown',
+            'J' =>   'Dalaran Ruins',
+            'O' =>   'Outland',
+            'K' =>   'Black Citadel'
+        );
+
+        if (!isset($tilesets[$char]))
+            return 'Unknown';
+
+        return $tilesets[$char];
+    }
+
     public static function imageCreateFromTGA ( $filename, $return_array = 0 )
     {
         // Example usage: imagejpeg (imageCreateFromTGA('file.tga'), 'out.jpg', 100);

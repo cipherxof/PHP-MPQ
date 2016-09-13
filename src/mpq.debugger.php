@@ -81,7 +81,7 @@ class MPQException extends Exception
     {
         if (isset($mpq->debugger))
             $mpq->debugger->write($message);
-
+        
         parent::__construct($message, $code);
     }
 }

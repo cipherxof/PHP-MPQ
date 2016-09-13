@@ -28,6 +28,17 @@ class SC2Map extends MPQArchive
     public function getShortDescription(){ return $this->shortDescription; }
     public function getVersionString(){ return $this->versionString; }
 
+    public function parseData()
+    {
+        if ($this->archive->hasFile("DocumentHeader") && $this->archive->hasFile("Minimap.tga"))
+        {
+            $file = $this->archive->readFile("DocumentHeader");
+            return strlen($file) > 0 && $this->parseDocumentHeader($file);
+        }
+
+        return false;
+    }
+
     protected function storeSerializedData($data)
     {
         $this->verMajor = $data[1][1];

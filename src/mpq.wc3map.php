@@ -4,11 +4,15 @@ class WC3Map extends MPQArchive
 {
     protected $name;
     protected $flags;
-    protected $maxPlayers;
+    protected $playerRec;
     protected $archive;
 
-    private $author, $desc;
     private $parsed;
+
+    // war3map.w3i
+    private $author, $desc, $tileset, $width, $height, $formatVersion, $loadScreen, $maxPlayers;
+    
+    // war3map.wts
     private $wts;
 
     function __construct($mpq) 
@@ -21,30 +25,32 @@ class WC3Map extends MPQArchive
         $this->parsed 	= 0;
     }
 
-    public function getParseStatus(){ return $this->parse; } // 1 == success
+    public function getParseStatus(){ return $this->parse; } // 1 = success
+    public function getVersion(){ return $this->formatVersion; } // 1 = TFT, 0 = ROC
     public function getName(){ return $this->name; }
-    public function getPlayerCount(){ return $this->maxPlayers; }
     public function getFlags(){ return $this->flags; }
+    public function getSuggestedPlayers(){ return $this->playerRec; }
+    public function getPlayerCount(){ return $this->maxPlayers; }
+    public function getPlayableArea(){ return array('width'=>$this->width, 'height'=>$this->height); }
+    public function getTileset(){ return $this->tileset; }
 
     public function getAuthor()
-    { 
-    	if ($this->parsed != 1)
-    		return false;
+    {
+        $result = $this->checkParsed();
 
-    	return $this->author; 
+    	return ($result == true ? $this->author : $result);
 	}
 
     public function getDescription()
     { 
-    	if ($this->parsed != 1)
-    		return false;
+        $result = $this->checkParsed();
 
-    	return $this->desc; 
+        return ($result == true ? $this->desc : $result);
 	}
 
-  	protected function parseData()
+  	public function parseData()
   	{
-  		if (!$this->archive->hasFile('war3map.w3i'))
+  		if (!$this->archive->hasFile('war3map.w3i') || !$this->archive->hasFile('war3map.wts'))
   		{
   			$this->parsed = 2;
 
@@ -52,23 +58,69 @@ class WC3Map extends MPQArchive
   		}
 
   		$info = $this->archive->readFile("war3map.w3i");
+
+        // parse header
+        $this->formatVersion = MPQReader::UInt16($info, $fp);
+
+        // name, author, description, suggested players
 	    $fp   = 12;
-	    $data = array('', '', '', '');
+	    $data = array('','','','');
 
 	    for ($i=0; $i < 4; $i++)
-	    {
-		    while ( ($s = MPQReader::byte($info, $fp)) != 0)
-		    {
-		    	$data[$i] .= chr($s);
-		    }
-		}
+            $data[$i] = MPQReader::String($info, $fp);
 
-	    $this->name = $this->readTriggerString($data[0]);
-	    $this->author = $this->readTriggerString($data[1]);
-	    $this->desc = $this->readTriggerString($data[2]);
-	    $this->maxPlayers = $this->readTriggerString($data[3]);
+        $this->name = $this->readTriggerString($data[0]);
+        $this->author = $this->readTriggerString($data[1]);
+        $this->desc = $this->readTriggerString($data[2]);
+        $this->playerRec = $this->readTriggerString($data[3]);
+
+        // map playable area
+        $fp+=40;
+        $bounds = array('','','','');
+
+        for($i=0; $i<4; $i++)
+            $bounds[$i] = MPQReader::UInt16($info, $fp);
+
+        $this->width  = MPQReader::UInt32($info, $fp);
+        $this->height = MPQReader::UInt32($info, $fp);
+
+        $fp += 4;
+
+        // tileset
+        $ground_type   = MPQReader::byte($info, $fp);
+        $this->tileset = MPQGameData::getWar3Tileset(chr($ground_type));
+
+        // loadscreen data
+        $this->loadScreen['index'] = MPQReader::UInt8($info, $fp);
+        $data = array('', '' ,'' ,'');
+
+        for ($i=0; $i < 4; $i++)
+        {
+            $data[$i] = MPQReader::String($info, $fp);
+
+            if ($i == 0)
+                $fp+=8;
+            
+        }
+
+        $this->loadScreen['path']     = $this->readTriggerString($data[0]);
+        $this->loadScreen['text']     = $this->readTriggerString($data[1]);
+        $this->loadScreen['title']    = $this->readTriggerString($data[2]);
+        $this->loadScreen['subtitle'] = $this->readTriggerString($data[3]);
+        
+        $uses_terrain_fog = MPQReader::UInt32($info, $fp);
+        /*$weather_id = MPQReader::UInt8($info, $fp);
+
+        $sound_env = "";
+
+        while ( ($s = MPQReader::byte($info, $fp)) != 0)
+            $sound_env .= chr($s);
+
+        $this->maxPlayers = MPQReader::UInt8($info, $fp);*/
 
 	    $this->parsed = 1;
+
+        return true;
   	}
 
     public function readTriggerString($source)
@@ -86,27 +138,30 @@ class WC3Map extends MPQArchive
 
 	    $num = explode("TRIGSTR_", $source);
 
-	    if (count($num) < 1)
+	    if (count($num) <= 1)
 	        return false;
 
-	    $num = intval($num[1]);
+	    $num   = intval($num[1]);
+        $split = strstr($this->wts, "STRING " . $num);
 
-	    $split = explode("STRING " . $num, $this->wts);
+        if (!$split) return false;
+	    $split = substr(strstr($split, "{"), 1);
+	    if (!$split) return false;
+        $split = strstr($split, "}", true);
+        if (!$split) return false;
 
-	    if (count($split) < 1)
-	        return false;
+	    return trim($split);
+    }
 
-	    $split = explode("{", $split[1]);
+    private function checkParsed()
+    {
+        if ($this->parsed == 0)
+            throw new MPQException($this->archive,'Must call $mpq->getGameData()->parseData() before using this method.');
 
-	    if (count($split) < 1)
-	        return false;
+        if ($this->parsed != 1)
+            return false;
 
-	    $split = explode("}", $split[1]);
-
-	    if (count($split) < 1)
-	        return false;
-
-	    return trim($split[0]);
+        return true;
     }
 
 }

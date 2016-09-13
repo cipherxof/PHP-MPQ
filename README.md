@@ -6,8 +6,6 @@ Currently supported:
 * Warcraft III Maps
 * Starcraft II Maps
 
-Demo: http://185.92.220.118/mapdb/
-
 Basic Example
 ==========
 
@@ -41,8 +39,12 @@ try{
     $mpq = new MPQArchive("wc3map.w3x", /*debug=*/true);
 }
 catch(MPQException $error){
+    $mpq = null;
+
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
 }
+
+$map = null;
 
 // process our archive according to what type it is
 switch($mpq->getType())
@@ -51,12 +53,14 @@ switch($mpq->getType())
     case MPQArchive::TYPE_WC3MAP:
         // maps can have their scripts in one of two places, so we check which
         $file = ($mpq->hasFile("Scripts\\War3map.j") ? "Scripts\\War3map.j" : "war3map.j");
+        $map  = $mpq->getGameData();
 
         break;
 
     // Starcraft II
     case MPQArchive::TYPE_SC2MAP:
         $file = "MapScript.galaxy";
+        $map  = $mpq->getGameData();
 
         break;
 
@@ -80,10 +84,10 @@ $output = "";
 file_put_contents(basename($file), $result);
 
 // check if the archive is a game
-$map = $mpq->getGameData();
-
 if ($map != null)
 {
+    $map->parseData();
+
     // get some details about the game
     $output .= $map->getName() . "\n";
     $output .= "by " . $map->getAuthor() . "\n";
@@ -95,6 +99,7 @@ $output .= "$file extracted.\n\n$result";
 // print the output
 echo (php_sapi_name() == 'cli' ? $output : nl2br($output));
 
+$mpq = null;
 ?>
 ```
 Based on https://code.google.com/archive/p/phpsc2replay/ and StormLib.
