@@ -30,7 +30,7 @@ class SC2Map extends MPQArchive
 
     public function parseData()
     {
-        if ($this->archive->hasFile("DocumentHeader") && $this->archive->hasFile("Minimap.tga"))
+        if ($this->archive->hasFile("DocumentHeader"))
         {
             $file = $this->archive->readFile("DocumentHeader");
             return strlen($file) > 0 && $this->parseDocumentHeader($file);

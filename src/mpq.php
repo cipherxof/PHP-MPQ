@@ -54,7 +54,7 @@ class MPQArchive
     protected $debugger;
     protected $debug;
 
-    public static $debugShowTables = true;
+    public static $debugShowTables = false;
 
     function __construct($filename, $debug=false) 
     {
@@ -113,14 +113,14 @@ class MPQArchive
         $end_of_search = $this->filesize;
         $isWar3        = false;
 
-        // Limit the header size to 130 MB
+        // Limit the header size to 130 MB.
         if ($end_of_search > 0x08000000)
             $end_of_search = 0x08000000;
 
         while (!$header_parsed && $fp < $end_of_search)
         {
-            // Read the archive 4 bytes at a time
-            for($i=0;$i<4;$i++)
+            // Buffer the first 4 bytes.
+           for($i=0;$i<4;$i++)
                 $byte[$i] = MPQReader::byte($this->fileData, $fp);
 
             // Check if the file is a Warcraft III map.
@@ -134,7 +134,6 @@ class MPQArchive
                 $this->map->name      = MPQReader::String($this->fileData, $fp);
                 $this->map->flags     = MPQReader::UInt32($this->fileData, $fp);
                 $this->map->playerRec = MPQReader::UInt32($this->fileData, $fp);
-
                 $isWar3 = true;
                 $fp = 4;
             }
@@ -144,15 +143,12 @@ class MPQArchive
                 if (!$isWar3 && $byte[3] == 0x1B) // user data block (1Bh)
                 {
                     $this->debugger->write(sprintf("Found user data block at %08X", $fp));
-
                     $udata_max_size = MPQReader::UInt32($this->fileData, $fp);
                     $headerOffset   = MPQReader::UInt32($this->fileData, $fp);
                     $udata_size     = MPQReader::UInt32($this->fileData, $fp);
                     $udata_start    = $fp;
-
                     $this->map = new SC2Map($this);
                     $data = SC2Map::parseSerializedData($this->fileData, $fp);
-
                     if ($data != false && $this->map->getVersionString() != null)
                         $this->map->storeSerializedData($data);
                     else
@@ -163,9 +159,7 @@ class MPQArchive
                 elseif ($byte[3] == 0x1A) // header (1Ah)
                 {
                     $this->headerOffset = $fp - 4;
-
                     $this->debugger->write(sprintf("Found header at %08X", $fp));
-
                     $this->headerSize    = MPQReader::UInt32($this->fileData, $fp);
                     $this->archiveSize   = MPQReader::UInt32($this->fileData, $fp);
                     $this->formatVersion = MPQReader::UInt16($this->fileData, $fp);
@@ -178,6 +172,9 @@ class MPQArchive
                     $header_parsed = true;
                 }
             }
+
+            // Skip 0x200 bytes for performance
+            $fp+=0x200-4;
         }
 
         if (!$header_parsed)
@@ -227,7 +224,7 @@ class MPQArchive
         $this->initialized = true;
         
         // Check to see if it's a Starcraft II map.
-        if ($this->type == self::TYPE_DEFAULT && $this->hasFile("Minimap.tga"))
+        if ($this->type == self::TYPE_DEFAULT)
         {
             if (!isset($this->map))
                 $this->map = new SC2Map($this);
