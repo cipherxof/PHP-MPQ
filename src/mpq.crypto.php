@@ -28,7 +28,7 @@ class MPQCrypto
         }
     }
 
-    static function decrypt($data, $key) 
+    static function decrypt(&$data, $key) 
     {
         $seed = ((0xEEEE << 16) | 0xEEEE);
 
