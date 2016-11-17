@@ -62,7 +62,9 @@ class MPQReader
         $out = "";
 
         while ( ($s = MPQReader::byte($string, $num_byte)) != 0)
+        {
             $out .= chr($s);
+        }
 
         return $out;
     }
