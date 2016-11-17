@@ -2,6 +2,7 @@
 
 require __DIR__ . '/mpq.wc3map.php';
 require __DIR__ . '/mpq.sc2map.php';
+require __DIR__ . '/mpq.wc3campaign.php';
 
 class MPQGameData
 {

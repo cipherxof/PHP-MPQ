@@ -10,7 +10,7 @@ class WC3Map extends MPQArchive
     private $parsed;
 
     // war3map.w3i
-    private $author, $desc, $tileset, $width, $height, $formatVersion, $saveCount, $editorVer, $loadScreen, $maxPlayers, $playerCount;
+    private $author, $desc, $tileset, $width, $height, $formatVersion, $saveCount, $ediRtorVer, $loadScreen, $maxPlayers, $playerCount;
     
     // war3map.wts
     private $wts;
@@ -26,7 +26,7 @@ class WC3Map extends MPQArchive
     }
 
     public function getParseStatus(){ return $this->parse; } // 1 = success
-    public function getVersion(){ return $this->formatVersion; } // 1 = TFT, 0 = ROC
+    public function getVersion(){ return $this->formatVersion; } // 25 = TFT, 18 = ROC
     public function getName(){ return $this->name; }
     public function getFlags(){ return $this->flags; }
     public function getSuggestedPlayers(){ return $this->playerRec; }
@@ -34,6 +34,9 @@ class WC3Map extends MPQArchive
     public function getMaxPlayers(){ return $this->maxPlayers; }
     public function getPlayableArea(){ return array('width'=>$this->width, 'height'=>$this->height); }
     public function getTileset(){ return $this->tileset; }
+    public function getLoadscreen(){ return $this->loadScreen; }
+    public function getAuthor(){ return ($this->checkParsed() ? $this->author : $this->parsed); }
+    public function getDescription(){ return ($this->checkParsed() ? $this->desc : $this->parsed); }
 
     private function checkParsed()
     {
@@ -46,30 +49,16 @@ class WC3Map extends MPQArchive
         return true;
     }
 
-    public function getAuthor()
+    public function parseData()
     {
-        $result = $this->checkParsed();
+        if (!$this->archive->hasFile('war3map.w3i'))
+        {
+            $this->parsed = 2;
 
-    	return ($result == true ? $this->author : $result);
-	}
+            return false;
+        }
 
-    public function getDescription()
-    { 
-        $result = $this->checkParsed();
-
-        return ($result == true ? $this->desc : $result);
-	}
-
-  	public function parseData()
-  	{
-  		if (!$this->archive->hasFile('war3map.w3i'))
-  		{
-  			$this->parsed = 2;
-
-  			return false;
-  		}
-
-  		$info = $this->archive->readFile("war3map.w3i");
+        $info = $this->archive->readFile("war3map.w3i");
         $fp   = 0;
 
         // parse header
@@ -120,32 +109,26 @@ class WC3Map extends MPQArchive
         switch($this->formatVersion)
         {
             case 18:
-
                 $fp += 2;
                 $this->maxPlayers = MPQReader::UInt8($info, $fp);
 
                 break;
 
             case 25:
-
                 $gamedataset = MPQReader::UInt8($info, $fp);
-
                 $fp += 4;
+
                 for ($i=0; $i < 4; $i++)
                 {
                     $data[$i] = MPQReader::String($info, $fp);
                 }
 
-                $terrain_fog = MPQReader::UInt8($info, $fp);
-
+                $terrain_fog        = MPQReader::UInt8($info, $fp);
                 $fp += 22;
-
-                $sound_env = MPQReader::String($info, $fp);
-
+                $sound_env          = MPQReader::String($info, $fp);
                 $fp += 5;
-
-                $this->maxPlayers  = MPQReader::UInt8($info, $fp);
-                $this->playerCount = 0;
+                $this->maxPlayers   = MPQReader::UInt8($info, $fp);
+                $this->playerCount  = 0;
 
                 break;
         }
@@ -168,47 +151,42 @@ class WC3Map extends MPQArchive
             if ($ptype == 1)
                 $this->playerCount++;
 
-            //echo "{$player} $pnum. [" . ($type[$ptype]) . "] $name <br/>";
-
             $fp += 16;
         }
 
-	    $this->parsed = 1;
+        $this->parsed = 1;
 
         return true;
-  	}
+    }
 
     public function readTriggerString($source)
     {
-        if (!$this->archive->hasFile('war3map.wts'))
+        $file = ($this->archive->getType() == MPQArchive::TYPE_WC3CAMPAIGN ? 'war3campaign.wts' : 'war3map.wts');
+
+        if (!$this->archive->hasFile($file))
             return $source;
 
-    	if (strpos($source, "TRIGSTR_") === false)
-    		return $source;
+        if (strpos($source, "TRIGSTR_") === false)
+            return $source;
 
-    	if (!isset($this->wts))
-    	{
-    		if (!$this->archive->hasFile('war3map.wts'))
-    			return false;
+        if (!isset($this->wts))
+            $this->wts = $this->archive->readFile($file);
 
-    		$this->wts = $this->archive->readFile('war3map.wts');
-    	}
+        $num = explode("TRIGSTR_", $source);
 
-	    $num = explode("TRIGSTR_", $source);
+        if (count($num) <= 1)
+            return false;
 
-	    if (count($num) <= 1)
-	        return false;
-
-	    $num   = intval($num[1]);
+        $num   = intval($num[1]);
         $split = strstr($this->wts, "STRING " . $num);
 
         if (!$split) return false;
-	    $split = substr(strstr($split, "{"), 1);
-	    if (!$split) return false;
+        $split = substr(strstr($split, "{"), 1);
+        if (!$split) return false;
         $split = strstr($split, "}", true);
         if (!$split) return false;
 
-	    return trim($split);
+        return trim($split);
     }
 
 }

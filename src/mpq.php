@@ -18,9 +18,10 @@ define("MPQ_HEADER_SIZE_V1", 0x20);
 
 class MPQArchive 
 {
-    const TYPE_DEFAULT = 0;
-    const TYPE_WC3MAP  = 1;
-    const TYPE_SC2MAP  = 2;
+    const TYPE_DEFAULT      = 0;
+    const TYPE_WC3MAP       = 1;
+    const TYPE_SC2MAP       = 2;
+    const TYPE_WC3CAMPAIGN  = 3;
 
     const FLAG_FILE       = 0x80000000;
     const FLAG_CHECKSUMS  = 0x04000000;
@@ -241,6 +242,15 @@ class MPQArchive
             else
                 $this->map = null;
         }
+        elseif ($this->type == self::TYPE_WC3MAP)
+        {
+            if (!$this->hasFile("war3map.w3i") && $this->hasFile("war3campaign.w3f"))
+            {
+                $this->type = self::TYPE_WC3CAMPAIGN;
+
+                $this->map = new WC3Campaign($this->map);
+            }
+        }
 
         return true;
     }
@@ -283,7 +293,7 @@ class MPQArchive
 
         if ($block_size == -1) 
         {
-            $this->debugger->write("Did not find file $filename in archive");
+            $this->debugger->write("Did not find file $filename in the archive");
             return false;
         }
 
