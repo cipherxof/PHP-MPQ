@@ -7,7 +7,28 @@ Currently supported:
 * Warcraft III Campaigns
 * Starcraft II Maps
 
+Demo: http://185.92.220.118/mapdb/
+
 Basic Example
+==========
+
+```php
+<?php
+// include the mpq library
+require 'src/mpq.php';
+
+// open the archive
+$mpq = new MPQArchive("wc3map.w3x");
+
+// set our file we want to extract
+$file_to_extract = "war3map.j";
+    
+// display the file
+echo $mpq->readFile($file_to_extract);
+?>
+```
+
+Advanced Example
 ==========
 
 ```php

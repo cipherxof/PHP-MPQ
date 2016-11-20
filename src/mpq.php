@@ -32,7 +32,7 @@ class MPQArchive
     const FLAG_COMPRESSED = 0x00000200;
     const FLAG_IMPLODED   = 0x00000100;
 
-    const BLOCK_INDEX_MASK = 0x000FFFFF;
+    const BLOCK_INDEX_MASK = 0x000AFFFF;
 
     private $filename, $filesize;
     private $fp;
