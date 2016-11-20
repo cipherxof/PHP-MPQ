@@ -322,7 +322,7 @@ class MPQArchive
         $flag_encrypted  = $flags & self::FLAG_ENCRYPTED;
         $flag_compressed = $flags & self::FLAG_COMPRESSED;
         $flag_imploded   = $flags & self::FLAG_IMPLODED;
-        
+
         $this->debugger->write(sprintf("Found $filename with flags %08X, block offset %08X, block size %d and filesize %d", $flags, $block_offset,$block_size,$filesize));
         
         if (!$flag_file) 
@@ -334,6 +334,7 @@ class MPQArchive
             $filename = basename(str_replace('\\', '/', $filename));
             $crypt_key = MPQCrypto::hashString($filename, MPQ_HASH_FILE_KEY);
 
+            // Fix the decryption key
             if ($flag_hEncrypted)
                 $crypt_key = (($crypt_key + $block_offset) ^ $filesize);
         }
@@ -343,9 +344,9 @@ class MPQArchive
         $fp = $block_offset + $offset;
 
         // Find the sector offsets.
-        if ($flag_checksums || !$flag_singleunit)
+        if ($flag_checksums || $flag_compressed)
         {
-            $sector_count=ceil($filesize / $this->sectorSize);
+            $sector_count=ceil((double)$filesize / (double)$this->sectorSize);
 
             for ($i = 0; $i <= $sector_count; $i++) 
             {
@@ -415,12 +416,14 @@ class MPQArchive
                 $num_byte = 0;
                 $compression_type = MPQReader::byte($sector_data, $num_byte);
                 
+                $this->debugger->write(sprintf("Found compresstion type: %d", $compression_type));
+
                 switch ($compression_type) 
                 {
                     case 0x02:
                         $sector_data = substr($sector_data,1);
 
-                        $this->debugger->write(sprintf("Found compresstion type: %d (gzlib)", $compression_type));
+                        $this->debugger->write("decompressing (gzip)");
 
                         $decompressed = gzinflate(substr($sector_data, 2, strlen($sector_data) - 2));
 
