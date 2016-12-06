@@ -16,6 +16,9 @@ define("MPQ_HASH_ENTRY_EMPTY", -1);
 define("MPQ_HASH_ENTRY_DELETED", -2);
 define("MPQ_HEADER_SIZE_V1", 0x20);
 
+define("MPQ_COMPRESSION_ZLIB", 0x02);
+define("MPQ_COMPRESSION_BZIP2", 0x10);
+
 class MPQArchive 
 {
     const TYPE_DEFAULT      = 0;
@@ -410,43 +413,58 @@ class MPQArchive
 
             $this->debugger->write(sprintf("Got %d bytes of sector data", strlen($sector_data)));
 
-            // Decompress the sector data, if necessary.
+            // Decompress the sector data if the compressed flag is found.
             if ($flag_compressed)
             {
-                $num_byte = 0;
-                $compression_type = MPQReader::byte($sector_data, $num_byte);
-                
+                $num_byte         = 0;
+                $compression_type = intval(MPQReader::byte($sector_data, $num_byte));
+                $sector_trimmed   = substr($sector_data,1);  
+
                 $this->debugger->write(sprintf("Found compresstion type: %d", $compression_type));
 
                 switch ($compression_type) 
                 {
-                    case 0x02:
-                        $sector_data = substr($sector_data,1);
-
-                        $this->debugger->write("decompressing (gzip)");
-
-                        $decompressed = gzinflate(substr($sector_data, 2, strlen($sector_data) - 2));
-
-                        if (!$decompressed)
-                        {
-                            $this->debugger->write(sprintf("Failed to decompress with compression type: %d", $compression_type));
-                            $output .= $sector_data;
-                            break;
-                        }
-
-                        $output .= $decompressed;
-
-                        break;
-                    case 0x10:
-                        $sector_data = substr($sector_data,1);              
-                        $output .= bzdecompress($sector_data);
-
-                        break;
+                    case MPQ_COMPRESSION_GZIP:
                     default:
-                        $output .= $sector_data; // sector is uncompressed
+                        $try_gzip = true;
+                        break;
+
+                    case MPQ_COMPRESSION_BZIP2:
+                        $decompressed = bzdecompress($sector_trimmed);      
+
+                        if ($decompressed < 0)
+                        {
+                            $try_gzip = true;
+                            $this->debugger->write("Failed to decompress with bzip2, trying gzip...");
+                        }
+                        else
+                        {
+                            $this->debugger->write("Decompressed with bzip2");
+                            $try_gzip = false;
+                            $output .= $decompressed;
+                        }
 
                         break;
                 }
+
+                // This isn't part of the switch statement because we want to
+                // try gzip if one of the previous compressions fail.
+                if ($try_gzip)
+                {
+                    $decompressed = gzinflate(substr($sector_trimmed, 2, strlen($sector_trimmed) - 2));
+
+                    if (!$decompressed)
+                    {
+                        $this->debugger->write("Failed to decompress with gzip");
+                        $output .= $sector_data;
+                    }
+                    else
+                    {
+                        $this->debugger->write("Decompressed with gzip");
+                        $output .= $decompressed;
+                    }
+                }
+
             }
             else $output .= $sector_data;
         }
@@ -454,7 +472,7 @@ class MPQArchive
         if (strlen($output) != $filesize) 
         {
             $err = sprintf("Decrypted/uncompressed filesize(%d) does not match original file size(%d)",strlen($output),$filesize);
-            $err .= "<br/>$output";
+            //$err .= "<br/>$output";
             $this->debugger->write($err);
             return false;
         }
