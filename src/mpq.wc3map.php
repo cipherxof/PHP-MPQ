@@ -109,9 +109,11 @@ class WC3Map extends MPQArchive
         switch($this->formatVersion)
         {
             case 18:
-                $fp += 2;
-                $this->maxPlayers = MPQReader::UInt8($info, $fp);
+                for ($i=0; $i < 2; $i++)
+                    $data[$i] = MPQReader::String($info, $fp);
 
+                $this->maxPlayers = MPQReader::UInt8($info, $fp);
+ 
                 break;
 
             case 25:
@@ -119,9 +121,7 @@ class WC3Map extends MPQArchive
                 $fp += 4;
 
                 for ($i=0; $i < 4; $i++)
-                {
                     $data[$i] = MPQReader::String($info, $fp);
-                }
 
                 $terrain_fog        = MPQReader::UInt8($info, $fp);
                 $fp += 22;
