@@ -41,7 +41,7 @@ MPQArchive::$debugShowTables = false;
 // open the archive and catch any errors
 try
 {
-    $mpq = new MPQArchive("maps/wc3map.w3x", /*debug=*/true);
+    $mpq = new MPQArchive("maps/wc3map.w3x", /*debug=*/false);
     $map = null;
 
     // process our archive according to what type it is
@@ -88,6 +88,26 @@ try
 
     // check if the archive is a game
     if ($map != null && $map->parseData())
+    {
+        // get some details about the game
+        $output .= sprintf("(%d) %s\nby %s\n\n", $map->getPlayerCount(), $map->getName(), $map->getAuthor());
+        $output .= sprintf("[Description]\n%s\n\n", $map->getDescription());
+    }
+
+    $output .= "$file extracted.\n\n$result";
+
+    // print the output
+    echo (php_sapi_name() == 'cli' ? $output : nl2br($output));
+
+    // close the archive
+    $mpq->close();
+}
+catch(MPQException $error)
+{
+    die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
+}
+
+?>
     {
         // get some details about the game
         $output .= sprintf("(%d) %s\nby %s\n\n", $map->getPlayerCount(), $map->getName(), $map->getAuthor());
