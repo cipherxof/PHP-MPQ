@@ -106,24 +106,6 @@ catch(MPQException $error)
 {
     die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
 }
-
-?>
-    {
-        // get some details about the game
-        $output .= sprintf("(%d) %s\nby %s\n\n", $map->getPlayerCount(), $map->getName(), $map->getAuthor());
-        $output .= sprintf("[Description]\n%s\n\n", $map->getDescription());
-    }
-
-    $output .= "$file extracted.\n\n$result";
-
-    // print the output
-    echo (php_sapi_name() == 'cli' ? $output : nl2br($output));
-}
-catch(MPQException $error)
-{
-    die(nl2br("<strong>Error:</strong> " . $error->getMessage() . "\n\n" . $error));
-}
-
 ?>
 ```
 Based on https://code.google.com/archive/p/phpsc2replay/ and StormLib.
