@@ -60,43 +60,43 @@ class WC3Map extends MPQArchive
 
         $info = $this->archive->readFile("war3map.w3i");
         $fp   = 0;
-
+        
         // parse header
-        $this->formatVersion = MPQReader::UInt32($info, $fp);
-        $this->saveCount     = MPQReader::UInt32($info, $fp);
-        $this->editorVer     = MPQReader::UInt32($info, $fp);
+        $this->formatVersion = MPQReader::UInt32_str($info, $fp);
+        $this->saveCount     = MPQReader::UInt32_str($info, $fp);
+        $this->editorVer     = MPQReader::UInt32_str($info, $fp);
 
-        $this->name      = $this->readTriggerString(MPQReader::String($info, $fp));
-        $this->author    = $this->readTriggerString(MPQReader::String($info, $fp));
-        $this->desc      = $this->readTriggerString(MPQReader::String($info, $fp));
-        $this->playerRec = $this->readTriggerString(MPQReader::String($info, $fp));
+        $this->name      = $this->readTriggerString(MPQReader::String_str($info, $fp));
+        $this->author    = $this->readTriggerString(MPQReader::String_str($info, $fp));
+        $this->desc      = $this->readTriggerString(MPQReader::String_str($info, $fp));
+        $this->playerRec = $this->readTriggerString(MPQReader::String_str($info, $fp));
 
         // map playable area
         $fp += 40;
         $bounds = array();
 
         for($i=0; $i<4; $i++)
-            $complements[$i] = MPQReader::UInt16($info, $fp);
+            $complements[$i] = MPQReader::UInt16_str($info, $fp);
 
-        $this->width  = MPQReader::UInt32($info, $fp);
-        $this->height = MPQReader::UInt32($info, $fp);
+        $this->width  = MPQReader::UInt32_str($info, $fp);
+        $this->height = MPQReader::UInt32_str($info, $fp);
 
         $fp += 4;
 
         // tileset
-        $this->tileset = MPQGameData::getWar3Tileset(chr(MPQReader::byte($info, $fp)));
+        $this->tileset = MPQGameData::getWar3Tileset(chr(MPQReader::byte_str($info, $fp)));
 
         $fp+=1;
 
         // loadscreen data
-        $this->loadScreen['index'] = MPQReader::UInt8($info, $fp);
+        $this->loadScreen['index'] = MPQReader::UInt8_str($info, $fp);
         $data = array_fill(0, 4, 0);
 
         $fp+=2;
 
         for ($i=0; $i < 4; $i++)
         {
-            $data[$i] = MPQReader::String($info, $fp);
+            $data[$i] = MPQReader::String_str($info, $fp);
         }
 
         $this->loadScreen['path']     = $this->readTriggerString($data[0]);
@@ -110,24 +110,24 @@ class WC3Map extends MPQArchive
         {
             case 18:
                 for ($i=0; $i < 2; $i++)
-                    $data[$i] = MPQReader::String($info, $fp);
+                    $data[$i] = MPQReader::String_str($info, $fp);
 
-                $this->maxPlayers = MPQReader::UInt8($info, $fp);
+                $this->maxPlayers = MPQReader::UInt8_str($info, $fp);
  
                 break;
 
             case 25:
-                $gamedataset = MPQReader::UInt8($info, $fp);
+                $gamedataset = MPQReader::UInt8_str($info, $fp);
                 $fp += 4;
 
                 for ($i=0; $i < 4; $i++)
-                    $data[$i] = MPQReader::String($info, $fp);
+                    $data[$i] = MPQReader::String_str($info, $fp);
 
-                $terrain_fog        = MPQReader::UInt8($info, $fp);
+                $terrain_fog        = MPQReader::UInt8_str($info, $fp);
                 $fp += 22;
-                $sound_env          = MPQReader::String($info, $fp);
+                $sound_env          = MPQReader::String_str($info, $fp);
                 $fp += 5;
-                $this->maxPlayers   = MPQReader::UInt8($info, $fp);
+                $this->maxPlayers   = MPQReader::UInt8_str($info, $fp);
                 $this->playerCount  = 0;
 
                 break;
@@ -138,15 +138,15 @@ class WC3Map extends MPQArchive
         // loop through each player
         for($player=0; $player < $this->maxPlayers; $player++)
         {
-            $pnum  = MPQReader::UInt8($info, $fp);
+            $pnum  = MPQReader::UInt8_str($info, $fp);
             $fp += 3;
-            $ptype = MPQReader::UInt8($info, $fp);
+            $ptype = MPQReader::UInt8_str($info, $fp);
             $fp += 3;
-            $prace = MPQReader::UInt8($info, $fp);
+            $prace = MPQReader::UInt8_str($info, $fp);
             $fp += 3;
-            $stpos = MPQReader::UInt8($info, $fp);
+            $stpos = MPQReader::UInt8_str($info, $fp);
             $fp += 3;
-            $name  = $this->readTriggerString(MPQReader::String($info, $fp));
+            $name  = $this->readTriggerString(MPQReader::String_str($info, $fp));
 
             if ($ptype == 1)
                 $this->playerCount++;
