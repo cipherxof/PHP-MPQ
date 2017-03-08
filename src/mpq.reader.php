@@ -2,59 +2,76 @@
 
 class MPQReader
 {
-    static function byte($file, &$fp) 
+
+    public $fp;
+    public $file;
+
+    function __construct($openFile) 
     {
-        $fp++; 
-        return fread($file, 1);
+        if ($openFile != null && get_resource_type($openFile) == 'file')
+        {
+            throw new MPQException($this, "MPQReader must take a file handle.");
+        }
+
+        $this->file = $openFile;
+        $this->fp = 0;
     }
 
-    static function bytes($file, &$fp, $length) 
+    public function setPosition($fp) 
     {
-        $fp+=$length;
-        return fread($file, $length);
+        $this->fp = $fp;
+        fseek($this->file, $fp);
     }
 
-    static function UInt8($file, &$fp) 
+    public function readByte() 
     {
-        $string = fread($file, 1);
+        $this->fp++; 
 
-        $tmp = unpack("c",$string);
-        $fp += 1;
+        return fread($this->file, 1);
+    }
+
+    public function readBytes($length) 
+    {
+        $this->fp+=$length;
+
+        return fread($this->file, $length);
+    }
+
+    public function readUInt8() 
+    {
+        $tmp = unpack("c", $this->readByte());
+        $this->fp += 1;
 
         return $tmp[1];
     }
 
-    static function UInt16($file, &$fp) 
+    public function readUInt16() 
     {
-        $string = fread($file, 2);
-
-        $tmp = unpack("v",$string);
-        $fp += 2;
+        $tmp = unpack("v", $this->readBytes(2));
+        $this->fp += 2;
 
         return $tmp[1];
     }
 
-    static function UInt32($file, &$fp) 
+    public function readUInt32() 
     {
-        $string = fread($file, 4);
-
-        $tmp = unpack("V",$string);
-        $fp += 4;
+        $tmp = unpack("V", $this->readBytes(4));
+        $this->fp += 4;
 
         return $tmp[1];
     }   
 
-    static function String($file, &$fp) 
+    public function readString() 
     {
         $output = "";
 
-        while ( ord($s = MPQReader::byte($file, $fp)) != 0)
+        while ( ord($s = $this->readByte()) != 0)
             $output .= $s;
 
         return $output;
     }
 
-    static function byte_str(&$string, &$num_byte) 
+    static function byte(&$string, &$num_byte) 
     {
         if ($num_byte >= strlen($string))
             return false;
@@ -62,7 +79,7 @@ class MPQReader
         $num_byte++;
         return $tmp[1];
     }
-    static function bytes_str($string, &$num_byte, $length) 
+    static function bytes($string, &$num_byte, $length) 
     {
         if (strlen($string) - $num_byte - $length < 0) 
             return false;
@@ -70,7 +87,7 @@ class MPQReader
         $num_byte += $length;
         return $tmp;
     }
-    static function UInt8_str($string, &$num_byte) 
+    static function UInt8($string, &$num_byte) 
     {
         if (strlen($string) - $num_byte - 1 < 0)
             return false;
@@ -78,7 +95,7 @@ class MPQReader
         $num_byte += 1;
         return $tmp[1];
     }
-    static function UInt16_str($string, &$num_byte) 
+    static function UInt16($string, &$num_byte) 
     {
         if (strlen($string) - $num_byte - 2 < 0)
             return false;
@@ -86,7 +103,7 @@ class MPQReader
         $num_byte += 2;
         return $tmp[1];
     }
-    static function UInt32_str($string, &$num_byte) 
+    static function UInt32($string, &$num_byte) 
     {
         if (strlen($string) - $num_byte - 4 < 0)
             return false;
@@ -94,10 +111,10 @@ class MPQReader
         $num_byte += 4;
         return $tmp[1];
     }
-    static function String_str($string, &$num_byte) 
+    static function String($string, &$num_byte) 
     {
         $out = "";
-        while ( ($s = MPQReader::byte_str($string, $num_byte)) != 0)
+        while ( ($s = MPQReader::byte($string, $num_byte)) != 0)
             $out .= chr($s);
         return $out;
     }
