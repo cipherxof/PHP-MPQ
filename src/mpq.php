@@ -75,7 +75,7 @@ class MPQArchive
 
     function close() 
     {
-        if ($this->file != null && get_resource_type($this->file) == 'file')
+        if (isset($this->file) && $this->file != null && get_resource_type($this->file) == 'file')
         {
             fclose($this->file);
         }
@@ -172,6 +172,7 @@ class MPQArchive
                     $this->blockTableOffset = ($this->blockTableOffset & BLOCK_INDEX_MASK);
 
                     $valid_header = ($this->hashTableOffset <= $this->filesize) && ($this->blockTableOffset <= $this->filesize);
+                    $valid_header = ($valid_header) && ($this->hashTableOffset > 0) && ($this->blockTableOffset > 0);
 
                     if ($valid_header && $this->headerSize >= MPQ_HEADER_SIZE_V1)
                         $header_parsed = true;
@@ -202,10 +203,10 @@ class MPQArchive
 
     public function getType()
     {
-        if ($typeParse)
+        if ($this->typeParse)
             return $this->type;
 
-        $typeParsed = true;
+        $this->typeParsed = true;
 
         // Check to see if the archive is a Starcraft II map.
         if ($this->type == self::TYPE_DEFAULT)
@@ -238,23 +239,20 @@ class MPQArchive
         $this->stream->setPosition($fp);
 
         for ($i = 0; $i < $hash_size; $i++)
-            $data[$i] = $this->stream->readUInt32();
+            $data[] = $this->stream->readUInt32();
 
         $fp = $this->stream->fp;
 
         return MPQCrypto::decrypt($data, MPQCrypto::hashString("(hash table)", MPQ_HASH_FILE_KEY));
     }
 
-    public function readBlocktable(&$fp, $block_size)
+    public function readBlocktable($block_size)
     {
         $data = array();
-
-        $this->stream->setPosition($fp);
+        $this->stream->setPosition($this->blockTableOffset);
         
         for ($i = 0; $i < $block_size; $i++)
-            $data[$i] = $this->stream->readUInt32($this->file, $fp);
-
-        $fp = $this->stream->fp;
+            $data[] = $this->stream->readUInt32();
 
         return MPQCrypto::decrypt($data, MPQCrypto::hashString("(block table)", MPQ_HASH_FILE_KEY));
     }
@@ -285,12 +283,14 @@ class MPQArchive
             {   
                 $block_index    = (($this->hashtable[($x *4) + 3]) *4);
                 $fp = $this->blockTableOffset;
-                $this->blocktable = $this->readBlocktable($fp, $block_index + 4);
+                $this->blocktable = $this->readBlocktable($block_index + 4);
 
                 $block_offset   = $this->blocktable[$block_index];
                 $block_size     = $this->blocktable[$block_index + 1];
                 $filesize       = $this->blocktable[$block_index + 2];
                 $flags          = $this->blocktable[$block_index + 3];
+
+                $this->blocktable = null;
 
                 break;
             }
@@ -333,7 +333,7 @@ class MPQArchive
         $flag_imploded   = $flags & MPQ_FLAG_IMPLODED;
 
         $this->debugger->write(sprintf("Found $filename with flags %08X, block offset %08X, block size %d and filesize %d", $flags, $block_offset,$block_size,$filesize));
-        
+
         if (!$flag_file) 
             return false;
 
@@ -475,6 +475,7 @@ class MPQArchive
                         $this->debugger->write("Decompressed with gzip");
                         $output .= $decompressed;
                     }
+
                 }
 
             }
@@ -488,18 +489,6 @@ class MPQArchive
         }
 
         return $output;
-    }
-
-    // saves the mpq data as a file.
-    public function saveAs($filename, $overwrite = false) 
-    {
-        if (file_exists($filename) && !$overwrite) return false;
-        $fp = fopen($filename, "wb");
-        if (!$fp) return false;
-        $result = fwrite($fp,$this->fileData);
-        if (!$result) return false;
-        fclose($fp);
-        return true;
     }
 
 }
