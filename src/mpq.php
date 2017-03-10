@@ -29,9 +29,10 @@ class MPQArchive
     private $archiveSize, $headerSize;
 
     protected $hashtable, $blocktable = NULL;
-    protected $hashTableSize, $blockTableSize = 0;
-    protected $hashTableOffset, $blockTableOffset = 0;
+    protected $hashtableSize, $blocktableSize = 0;
+    protected $hashtableOffset, $blocktableOffset = 0;
     protected $headerOffset = 0;
+    protected $htFile;
 
     private $sectorSize = 0;
     private $stream;
@@ -101,33 +102,38 @@ class MPQArchive
         if ($end_of_search > 0x08000000)
             $end_of_search = 0x08000000;
 
+        // Check if the file is a Warcraft III map.
+        $buffer = $this->stream->readBytes(4);
+
+        if ($buffer == 'HM3W')
+        {
+            $this->type = self::TYPE_WC3MAP;
+            $this->stream->setPosition(8);
+
+            // Store some information about the map.
+            $this->map = new WC3Map($this);
+            $this->map->name      = $this->stream->readString();
+            $this->map->flags     = $this->stream->readUInt32();
+            $this->map->playerRec = $this->stream->readUInt32();
+
+            $isWar3 = true;
+
+            $this->stream->setPosition(4);
+        }
+        else
+        {
+            $this->stream->setPosition(0);
+        }
+
         // Find and parse the MPQ header.
         while (!$header_parsed && $this->stream->fp < $end_of_search)
         {
-            // Buffer 4 bytes.
-            $buffer = $this->stream->readBytes(4);
+            $buffer = $this->stream->readBytes(3);
 
-            // Check if the file is a Warcraft III map.
-            if ($this->stream->fp == 4 && $buffer == 'HM3W')
+            if ($buffer == "MPQ")
             {
-                $this->type = self::TYPE_WC3MAP;
-                $this->stream->setPosition(8);
+                $buffer[3] = $this->stream->readByte();
 
-                // Store some information about the map.
-                $this->map = new WC3Map($this);
-                $this->map->name      = $this->stream->readString();
-                $this->map->flags     = $this->stream->readUInt32();
-                $this->map->playerRec = $this->stream->readUInt32();
-
-                $isWar3 = true;
-
-                $this->stream->setPosition(4);
-
-                continue;
-            }
-
-            if ($buffer[0] == 'M' && $buffer[1] == 'P' && $buffer[2] == 'Q')
-            {
                 if (!$isWar3 && ord($buffer[3]) == 0x1B) // user data block (1Bh)
                 {
                     $udata_start = $this->stream->fp-4;
@@ -151,10 +157,8 @@ class MPQArchive
                 }
                 elseif (ord($buffer[3]) == 0x1A) // header (1Ah)
                 {
-                    $start = $this->stream->fp;
-
                     $this->headerOffset = $this->stream->fp - 4;
-  
+                
                     $this->debugger->write(sprintf("Found header at %08X", $this->headerOffset));
 
                     $this->headerSize       = $this->stream->readUInt32();
@@ -177,9 +181,14 @@ class MPQArchive
                     if ($valid_header && $this->headerSize >= MPQ_HEADER_SIZE_V1)
                         $header_parsed = true;
 
-                    $this->stream->setPosition($start);
+                    $this->stream->setPosition($this->headerOffset + 4);
 
                 }
+            }
+            else
+            {
+                // skip a byte
+                $this->stream->readByte();
             }
         }
 
