@@ -32,7 +32,7 @@ class MPQArchive
     protected $hashtableSize, $blocktableSize = 0;
     protected $hashtableOffset, $blocktableOffset = 0;
     protected $headerOffset = 0;
-    protected $htFile;
+    protected $htFile, $htFname, $htEnd, $htKey, $btFile, $btFname, $btEnd, $btkey;
 
     private $sectorSize = 0;
     private $stream;
@@ -76,10 +76,9 @@ class MPQArchive
 
     function close() 
     {
-        if (isset($this->file) && $this->file != null && get_resource_type($this->file) == 'file')
-        {
-            fclose($this->file);
-        }
+        if (isset($this->file) && $this->file != null && get_resource_type($this->file) == 'file') fclose($this->file);
+        if (isset($this->btFile) && $this->btFile != null && get_resource_type($this->btFile) == 'file') fclose($this->btFile);
+        if (isset($this->htFile) && $this->htFile != null && get_resource_type($this->htFile) == 'file') fclose($this->htFile);
     }
 
     public function isInitialized() { return $this->initialized === true; }
@@ -195,16 +194,29 @@ class MPQArchive
         if (!$header_parsed)
             throw new MPQException($this, "Unable to read the archive header.");
 
-        // Limit the hashtable size to prevent memory overflow.
+        // Limit the table sizes to prevent memory overflow.
         $this->hashTableSize = ($this->hashTableSize & BLOCK_INDEX_MASK);
+        $this->blockTableSize = ($this->hashTableSize & BLOCK_INDEX_MASK);
 
-        // Read the hashtable.
-        $fp = $this->hashTableOffset;
-        $this->hashtable = $this->readHashtable($fp, $this->hashTableSize * 4);
+        // Write the hashtable to disk to reduce memory usage.
+        $this->htFname = tempnam(sys_get_temp_dir(), "ht");
+        file_put_contents($this->htFname, ""); // clear file
+        $this->htKey = MPQCrypto::hashString("(hash table)", MPQ_HASH_FILE_KEY);
+        $this->htFile = fopen($this->htFname, "a+");
+        $this->stream->setPosition($this->hashTableOffset);
+        MPQCrypto::decryptStream($this->stream, $this->hashTableSize * 4, $this->htKey, $this->htFile);
 
-        $this->debugger->write(sprintf("Hash table offset: %08X, Block table offset: %08X", $this->hashTableOffset, $this->blockTableOffset));
+        // and blocktable
+        $this->btFname = tempnam(sys_get_temp_dir(), "bt");
+        file_put_contents($this->btFname, ""); // clear file
+        $this->btKey = MPQCrypto::hashString("(block table)", MPQ_HASH_FILE_KEY);
+        $this->btFile = fopen($this->btFname, "a+");
+        $this->stream->setPosition($this->blockTableOffset);
+        MPQCrypto::decryptStream($this->stream, $this->blockTableSize * 4, $this->btKey, $this->btFile);
 
         // The archive is ready.
+        $this->debugger->write(sprintf("Hash table offset: %08X, Block table offset: %08X", $this->hashTableOffset, $this->blockTableOffset));
+
         $this->initialized = true;
         
         return true;
@@ -241,29 +253,18 @@ class MPQArchive
         return $this->type;
     }
 
-    public function readHashtable(&$fp, $hash_size)
+    public function readHashtable($index)
     {
-        $data = array();
-
-        $this->stream->setPosition($fp);
-
-        for ($i = 0; $i < $hash_size; $i++)
-            $data[] = $this->stream->readUInt32();
-
-        $fp = $this->stream->fp;
-
-        return MPQCrypto::decrypt($data, MPQCrypto::hashString("(hash table)", MPQ_HASH_FILE_KEY));
+        fseek($this->htFile, $index*4);
+        $val = fread($this->htFile, 4);
+        return unpack("V", $val)[1];
     }
 
-    public function readBlocktable($block_size)
+    public function readBlocktable($index)
     {
-        $data = array();
-        $this->stream->setPosition($this->blockTableOffset);
-        
-        for ($i = 0; $i < $block_size; $i++)
-            $data[] = $this->stream->readUInt32();
-
-        return MPQCrypto::decrypt($data, MPQCrypto::hashString("(block table)", MPQ_HASH_FILE_KEY));
+        fseek($this->btFile, $index*4);
+        $val = fread($this->btFile, 4);
+        return unpack("V", $val)[1];
     }
 
     public function getFileInfo($filename)
@@ -283,23 +284,19 @@ class MPQArchive
 
         do 
         {
-            if (($this->hashtable[$x*4 + 3] == MPQ_HASH_ENTRY_DELETED) || ($this->hashtable[$x*4 + 3] == MPQ_HASH_ENTRY_EMPTY)) 
+            if (($this->readHashtable($x*4 + 3) == MPQ_HASH_ENTRY_DELETED) || ($this->readHashtable($x*4 + 3) == MPQ_HASH_ENTRY_EMPTY)) 
             {
                 return false;
             }
 
-            if ($this->hashtable[$x*4] == $hash_a && $this->hashtable[$x*4 + 1] == $hash_b) // found file
+            if ($this->readHashtable($x*4) == $hash_a && $this->readHashtable($x*4 + 1) == $hash_b) // found file
             {   
-                $block_index    = (($this->hashtable[($x *4) + 3]) *4);
-                $fp = $this->blockTableOffset;
-                $this->blocktable = $this->readBlocktable($block_index + 4);
+                $block_index    = (($this->readHashtable(($x *4) + 3)) *4);
 
-                $block_offset   = $this->blocktable[$block_index];
-                $block_size     = $this->blocktable[$block_index + 1];
-                $filesize       = $this->blocktable[$block_index + 2];
-                $flags          = $this->blocktable[$block_index + 3];
-
-                $this->blocktable = null;
+                $block_offset   = $this->readBlocktable($block_index);
+                $block_size     = $this->readBlocktable($block_index + 1);
+                $filesize       = $this->readBlocktable($block_index + 2);
+                $flags          = $this->readBlocktable($block_index + 3);
 
                 break;
             }

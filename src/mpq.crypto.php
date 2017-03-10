@@ -47,6 +47,24 @@ class MPQCrypto
         return $data;
     }
 
+    static function decryptStream($stream, $datalen, $key, $outFile) 
+    {
+        $seed = ((0xEEEE << 16) | 0xEEEE);
+
+        for($i = 0;$i < $datalen;$i++) 
+        {
+            $seed = uPlus($seed, self::$table[0x400 + ($key & 0xFF)]);
+            $ch = $stream->readUInt32() ^ (uPlus($key,$seed));
+
+            $key = (uPlus(((~$key) << 0x15), 0x11111111)) | (rShift($key,0x0B));
+            $seed = uPlus(uPlus(uPlus($ch,$seed),($seed << 5)),3);
+
+            $val = ($ch & ((0xFFFF << 16) | 0xFFFF));
+
+            fwrite($outFile, pack("V", $val));
+        }
+    }
+
     static function encrypt($data, $key) 
     {
         $seed = ((0xEEEE << 16) | 0xEEEE);
