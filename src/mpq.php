@@ -70,15 +70,25 @@ class MPQArchive
     }
 
     function __destruct() 
-    {
+    {   
         $this->close();
     }
 
     function close() 
     {
-        if (isset($this->file) && $this->file != null && get_resource_type($this->file) == 'file') fclose($this->file);
-        if (isset($this->btFile) && $this->btFile != null && get_resource_type($this->btFile) == 'file') fclose($this->btFile);
-        if (isset($this->htFile) && $this->htFile != null && get_resource_type($this->htFile) == 'file') fclose($this->htFile);
+        if ($this->btFile && get_resource_type($this->btFile) == 'stream')
+        {
+            fclose($this->btFile); 
+            unlink($this->btFname);
+        }
+
+        if ($this->htFile && get_resource_type($this->htFile) == 'stream')
+        {
+            fclose($this->htFile); 
+            unlink($this->htFname);
+        }
+
+        if ($this->file && get_resource_type($this->file) == 'stream') fclose($this->htFile); 
     }
 
     public function isInitialized() { return $this->initialized === true; }
@@ -129,65 +139,63 @@ class MPQArchive
         {
             $buffer = $this->stream->readBytes(3);
 
-            if ($buffer == "MPQ")
+            if ($buffer != "MPQ")
             {
-                $buffer[3] = $this->stream->readByte();
-
-                if (!$isWar3 && ord($buffer[3]) == 0x1B) // user data block (1Bh)
-                {
-                    $udata_start = $this->stream->fp-4;
-
-                    $this->debugger->write(sprintf("Found user data block at %08X", $udata_start));
-
-                    $udata_max_size = $this->stream->readUInt32();
-                    $header_offset  = $this->stream->readUInt32();
-                    $udata_size     = $this->stream->readUInt32();
-
-                    $this->map = new SC2Map($this);
-                    $data = SC2Map::parseSerializedData($this->file, $this->stream->fp);
-
-                    if ($data != false && $this->map->getVersionString() != null)
-                        $this->map->storeSerializedData($data);
-                    else
-                        $this->map = null;
-
-                    $this->stream->setPosition($udata_start+4);
-
-                }
-                elseif (ord($buffer[3]) == 0x1A) // header (1Ah)
-                {
-                    $this->headerOffset = $this->stream->fp - 4;
-                
-                    $this->debugger->write(sprintf("Found header at %08X", $this->headerOffset));
-
-                    $this->headerSize       = $this->stream->readUInt32();
-                    $this->archiveSize      = $this->stream->readUInt32();
-                    $this->formatVersion    = $this->stream->readUInt16();
-
-                    $this->sectorSize       = 512 * (1 << $this->stream->readUInt16());
-                    
-                    $this->hashTableOffset  = $this->stream->readUInt32() + $this->headerOffset;
-                    $this->blockTableOffset = $this->stream->readUInt32() + $this->headerOffset; 
-                    $this->hashTableSize    = ($this->stream->readUInt32() & BLOCK_INDEX_MASK);
-                    $this->blockTableSize   = ($this->stream->readUInt32() & BLOCK_INDEX_MASK);
-
-                    $this->hashTableOffset  = ($this->hashTableOffset & BLOCK_INDEX_MASK);
-                    $this->blockTableOffset = ($this->blockTableOffset & BLOCK_INDEX_MASK);
-
-                    $valid_header = ($this->hashTableOffset <= $this->filesize) && ($this->blockTableOffset <= $this->filesize);
-                    $valid_header = ($valid_header) && ($this->hashTableOffset > 0) && ($this->blockTableOffset > 0);
-
-                    if ($valid_header && $this->headerSize >= MPQ_HEADER_SIZE_V1)
-                        $header_parsed = true;
-
-                    $this->stream->setPosition($this->headerOffset + 4);
-
-                }
-            }
-            else
-            {
-                // skip a byte
                 $this->stream->readByte();
+                continue;
+            }
+
+            $buffer[3] = $this->stream->readByte();
+
+            if (!$isWar3 && ord($buffer[3]) == 0x1B) // user data block (1Bh)
+            {
+                $udata_start = $this->stream->fp-4;
+
+                $this->debugger->write(sprintf("Found user data block at %08X", $udata_start));
+
+                $udata_max_size = $this->stream->readUInt32();
+                $header_offset  = $this->stream->readUInt32();
+                $udata_size     = $this->stream->readUInt32();
+
+                $this->map = new SC2Map($this);
+                $data = SC2Map::parseSerializedData($this->file, $this->stream->fp);
+
+                if ($data != false && $this->map->getVersionString() != null)
+                    $this->map->storeSerializedData($data);
+                else
+                    $this->map = null;
+
+                $this->stream->setPosition($udata_start+4);
+
+            }
+            elseif (ord($buffer[3]) == 0x1A) // header (1Ah)
+            {
+                $this->headerOffset = $this->stream->fp - 4;
+            
+                $this->debugger->write(sprintf("Found header at %08X", $this->headerOffset));
+
+                $this->headerSize       = $this->stream->readUInt32();
+                $this->archiveSize      = $this->stream->readUInt32();
+                $this->formatVersion    = $this->stream->readUInt16();
+
+                $this->sectorSize       = 512 * (1 << $this->stream->readUInt16());
+                
+                $this->hashTableOffset  = $this->stream->readUInt32() + $this->headerOffset;
+                $this->blockTableOffset = $this->stream->readUInt32() + $this->headerOffset; 
+                $this->hashTableSize    = ($this->stream->readUInt32() & BLOCK_INDEX_MASK);
+                $this->blockTableSize   = ($this->stream->readUInt32() & BLOCK_INDEX_MASK);
+
+                $this->hashTableOffset  = ($this->hashTableOffset & BLOCK_INDEX_MASK);
+                $this->blockTableOffset = ($this->blockTableOffset & BLOCK_INDEX_MASK);
+
+                $valid_header = ($this->hashTableOffset <= $this->filesize) && ($this->blockTableOffset <= $this->filesize);
+                $valid_header = ($valid_header) && ($this->hashTableOffset > 0) && ($this->blockTableOffset > 0);
+
+                if ($valid_header && $this->headerSize >= MPQ_HEADER_SIZE_V1)
+                    $header_parsed = true;
+
+                $this->stream->setPosition($this->headerOffset + 4);
+
             }
         }
 
@@ -198,7 +206,7 @@ class MPQArchive
         $this->hashTableSize = ($this->hashTableSize & BLOCK_INDEX_MASK);
         $this->blockTableSize = ($this->hashTableSize & BLOCK_INDEX_MASK);
 
-        // Write the hashtable to disk to reduce memory usage.
+        // Write the decrypted hashtable to disk to reduce memory usage.
         $this->htFname = tempnam(sys_get_temp_dir(), "ht");
         file_put_contents($this->htFname, ""); // clear file
         $this->htKey = MPQCrypto::hashString("(hash table)", MPQ_HASH_FILE_KEY);
@@ -224,7 +232,7 @@ class MPQArchive
 
     public function getType()
     {
-        if ($this->typeParse)
+        if ($this->typeParsed)
             return $this->type;
 
         $this->typeParsed = true;
@@ -434,9 +442,8 @@ class MPQArchive
             // Decompress the sector data if the compressed flag is found.
             if ($flag_compressed)
             {
-                $num_byte         = 0;
                 $compression_type = unpack("C", substr($sector_data, 0, 1))[1];  
-                $sector_trimmed   = substr($sector_data,1);  
+                $sector_trimmed   = substr($sector_data, 1);  
 
                 $this->debugger->write(sprintf("Found compresstion type: %d", $compression_type));
 
