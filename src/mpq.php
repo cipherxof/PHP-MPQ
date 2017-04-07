@@ -338,7 +338,7 @@ class MPQArchive
         $flags        = $file_info['flags'];
 
         $flag_file       = $flags & MPQ_FLAG_FILE;
-        $flag_checksums  = $flags & MPQ_FLAG_CHECKSUMS;
+        $flag_checksums  = $flags & MPQ_FLAG_CHECKSUM;
         $flag_deleted    = $flags & MPQ_FLAG_DELETED;
         $flag_singleunit = $flags & MPQ_FLAG_SINGLEUNIT;
         $flag_hEncrypted = $flags & MPQ_FILE_FIX_KEY;
@@ -454,7 +454,7 @@ class MPQArchive
                         $try_gzip = true;
                         break;
 
-                    case MPQ_COMPRESSION_BZIP2:
+                    case MPQ_COMPRESS_BZIP2:
                         $decompressed = bzdecompress($sector_trimmed);      
 
                         if ($decompressed < 0)
