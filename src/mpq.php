@@ -24,7 +24,7 @@ class MPQArchive
     private $map = null;
     private $typeParsed = false;
 
-    private $fileData;
+    private $file;
     private $formatVersion;
     private $archiveSize, $headerSize;
 
@@ -88,7 +88,7 @@ class MPQArchive
             unlink($this->htFname);
         }
 
-        if ($this->file && get_resource_type($this->file) == 'stream') fclose($this->htFile); 
+        if ($this->file && get_resource_type($this->file) == 'stream') fclose($this->file); 
     }
 
     public function isInitialized() { return $this->initialized === true; }
@@ -265,14 +265,16 @@ class MPQArchive
     {
         fseek($this->htFile, $index*4);
         $val = fread($this->htFile, 4);
-        return unpack("V", $val)[1];
+
+        return (strlen($val) != 4 ? "" : unpack("V", $val)[1]);
     }
 
     public function readBlocktable($index)
     {
         fseek($this->btFile, $index*4);
         $val = fread($this->btFile, 4);
-        return unpack("V", $val)[1];
+
+        return (strlen($val) != 4 ? "" : unpack("V", $val)[1]);
     }
 
     public function getFileInfo($filename)
@@ -449,8 +451,11 @@ class MPQArchive
 
                 switch ($compression_type) 
                 {
-                    case MPQ_COMPRESS_DEFLATE:
                     default:
+                        $try_gzip = ($block_size != $filesize);
+                        break;
+
+                    case MPQ_COMPRESS_DEFLATE:
                         $try_gzip = true;
                         break;
 
