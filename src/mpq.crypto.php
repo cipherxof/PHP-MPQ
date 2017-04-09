@@ -51,14 +51,8 @@ class MPQCrypto
     {
         $seed = ((0xEEEE << 16) | 0xEEEE);
 
-        $stat = fstat($stream->file);
-        $size = $stat['size'];
-
-        for($i = 0;$i < $datalen;$i++) 
+        for($i = 0; $i < $datalen; $i++) 
         {
-            if ($stream->fp > $size)
-                break;
-
             $seed = uPlus($seed, self::$table[0x400 + ($key & 0xFF)]);
             $ch = $stream->readUInt32() ^ (uPlus($key,$seed));
 

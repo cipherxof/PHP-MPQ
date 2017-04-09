@@ -16,8 +16,14 @@
     const MPQ_FLAG_COMPRESSED   = 0x00000200;
     const MPQ_FLAG_IMPLODED     = 0x00000100;
 
-    const MPQ_COMPRESS_DEFLATE  = 0x02;
-    const MPQ_COMPRESS_BZIP2    = 0x10;
+    const MPQ_COMPRESSION_HUFFMANN      = 0x01;
+    const MPQ_COMPRESSION_ZLIB          = 0x02;
+    const MPQ_COMPRESSION_PKWARE        = 0x08;
+    const MPQ_COMPRESSION_BZIP2         = 0x10;
+    const MPQ_COMPRESSION_SPARSE        = 0x20;
+    const MPQ_COMPRESSION_ADPCM_MONO    = 0x40;
+    const MPQ_COMPRESSION_ADPCM_STEREO  = 0x80;
+    const MPQ_COMPRESSION_LZMA          = 0x12;
 
     const BLOCK_INDEX_MASK = 0xFFFFFFFF;
 ?>

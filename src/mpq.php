@@ -204,7 +204,7 @@ class MPQArchive
 
         // Limit the table sizes to prevent memory overflow.
         $this->hashTableSize = ($this->hashTableSize & BLOCK_INDEX_MASK);
-        $this->blockTableSize = ($this->hashTableSize & BLOCK_INDEX_MASK);
+        $this->blockTableSize = ($this->blockTableSize & BLOCK_INDEX_MASK);
 
         // Write the decrypted hashtable to disk to reduce memory usage.
         $this->htFname = tempnam(sys_get_temp_dir(), "ht");
@@ -455,11 +455,11 @@ class MPQArchive
                         $try_gzip = ($block_size != $filesize);
                         break;
 
-                    case MPQ_COMPRESS_DEFLATE:
+                    case MPQ_COMPRESSION_ZLIB:
                         $try_gzip = true;
                         break;
 
-                    case MPQ_COMPRESS_BZIP2:
+                    case MPQ_COMPRESSION_BZIP2:
                         $decompressed = bzdecompress($sector_trimmed);      
 
                         if ($decompressed < 0)
@@ -475,10 +475,28 @@ class MPQArchive
                         }
 
                         break;
+
+                    case MPQ_COMPRESSION_ADPCM_MONO | MPQ_COMPRESSION_HUFFMANN:
+                    case MPQ_COMPRESSION_ADPCM_STEREO | MPQ_COMPRESSION_HUFFMANN:
+                        $try_gzip = false;
+
+                        $this->debugger->write(sprintf("Unsupported audio compression type: %d", $compression_type));
+
+                        break;
+
+                    case MPQ_COMPRESSION_PKWARE:
+                    case MPQ_COMPRESSION_LZMA:
+                    case MPQ_COMPRESSION_SPARSE:
+                    case MPQ_COMPRESSION_SPARSE | MPQ_COMPRESSION_ZLIB:
+                    case MPQ_COMPRESSION_SPARSE | MPQ_COMPRESSION_BZIP2:
+                        $try_gzip = false;
+
+                        $this->debugger->write(sprintf("Unsupported compression type: %d", $compression_type));
+
+                        break;
+
                 }
 
-                // This isn't part of the switch statement because we want to
-                // try gzip if one of the previous compressions fail.
                 if ($try_gzip)
                 { 
                     $decompressed = ($len < 3 ? false : gzinflate(substr($sector_data, 3, $len - 2)));
