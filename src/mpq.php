@@ -213,6 +213,7 @@ class MPQArchive
         $this->htFile = fopen($this->htFname, "a+");
         $this->stream->setPosition($this->hashTableOffset);
         MPQCrypto::decryptStream($this->stream, $this->hashTableSize * 4, $this->htKey, $this->htFile);
+        $this->debugger->hashTable();
 
         // and blocktable
         $this->btFname = tempnam(sys_get_temp_dir(), "bt");
@@ -221,6 +222,7 @@ class MPQArchive
         $this->btFile = fopen($this->btFname, "a+");
         $this->stream->setPosition($this->blockTableOffset);
         MPQCrypto::decryptStream($this->stream, $this->blockTableSize * 4, $this->btKey, $this->btFile);
+        $this->debugger->blockTable();
 
         // The archive is ready.
         $this->debugger->write(sprintf("Hash table offset: %08X, Block table offset: %08X", $this->hashTableOffset, $this->blockTableOffset));
@@ -453,6 +455,10 @@ class MPQArchive
                 {
                     default:
                         $try_gzip = ($block_size != $filesize);
+
+                        if (!$try_gzip)
+                            $output .= $sector_data;
+
                         break;
 
                     case MPQ_COMPRESSION_ZLIB:
@@ -479,19 +485,27 @@ class MPQArchive
                     case MPQ_COMPRESSION_ADPCM_MONO | MPQ_COMPRESSION_HUFFMANN:
                     case MPQ_COMPRESSION_ADPCM_STEREO | MPQ_COMPRESSION_HUFFMANN:
                         $try_gzip = false;
-
                         $this->debugger->write(sprintf("Unsupported audio compression type: %d", $compression_type));
+                        $output .= $sector_data;
 
                         break;
 
                     case MPQ_COMPRESSION_PKWARE:
+                        $try_gzip = false;
+                        $this->debugger->write(sprintf("Unsupported compression type: %d (PKWARE)", $compression_type));
+                        $output .= $sector_data;
+
+                        break;
+
                     case MPQ_COMPRESSION_LZMA:
                     case MPQ_COMPRESSION_SPARSE:
                     case MPQ_COMPRESSION_SPARSE | MPQ_COMPRESSION_ZLIB:
                     case MPQ_COMPRESSION_SPARSE | MPQ_COMPRESSION_BZIP2:
-                        $try_gzip = false;
-
+                        $try_gzip = $isWar3;
                         $this->debugger->write(sprintf("Unsupported compression type: %d", $compression_type));
+
+                        if (!$try_gzip)
+                            $output .= $sector_data;
 
                         break;
 
@@ -514,8 +528,12 @@ class MPQArchive
 
                 }
 
+
             }
-            else $output .= $sector_data;
+            else 
+            {
+                $output .= $sector_data;
+            }
         }
 
         if (strlen($output) != $filesize) 

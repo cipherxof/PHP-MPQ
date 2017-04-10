@@ -25,10 +25,10 @@ class MPQDebugger extends MPQArchive
 
         for ($i = 0; $i < $this->mpq->hashTableSize; $i++) 
         {
-            $filehash_a = $this->mpq->hashtable[$i*4];
-            $filehash_b = $this->mpq->hashtable[$i*4 +1];
-            $lanplat = $this->mpq->hashtable[$i*4 +2];
-            $blockindex = $this->mpq->hashtable[$i*4 +3];
+            $filehash_a = $this->mpq->readHashtable($i*4);
+            $filehash_b = $this->mpq->readHashtable($i*4 +1);
+            $lanplat = $this->mpq->readHashtable($i*4 +2);
+            $blockindex = $this->mpq->readHashtable($i*4 +3);
             $this->write(sprintf("<pre>%08X %08X %08X %08X</pre>",$filehash_a, $filehash_b, $lanplat, $blockindex));
         }
     }
@@ -44,10 +44,10 @@ class MPQDebugger extends MPQArchive
         for ($i = 0;$i < $this->mpq->blockTableSize;$i++) 
         {   
             $block_index = $i * 4;
-            $block_offset = $this->mpq->blocktable[$block_index] + $this->mpq->headerOffset;
-            $block_size = $this->mpq->blocktable[$block_index + 1];
-            $filesize = $this->mpq->blocktable[$block_index + 2];
-            $flags = $this->mpq->blocktable[$block_index + 3];
+            $block_offset = $this->mpq->readBlocktable($block_index) + $this->mpq->headerOffset;
+            $block_size = $this->mpq->readBlocktable($block_index + 1);
+            $filesize = $this->mpq->readBlocktable($block_index + 2);
+            $flags = $this->mpq->readBlocktable($block_index + 3);
             $this->write(sprintf("<pre>%08X %8d %8d %08X</pre>",$block_offset, $block_size, $filesize, $flags));
         }
     }
