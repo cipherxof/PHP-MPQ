@@ -73,8 +73,9 @@ class MPQReader
 
     static function byte(&$string, &$num_byte) 
     {
-        if ($num_byte >= strlen($string))
+        if (!is_string($string) || $num_byte >= strlen($string))
             return false;
+        
         $tmp = unpack("C",substr($string,$num_byte,1));
         $num_byte++;
         return $tmp[1];

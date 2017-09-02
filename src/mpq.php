@@ -188,6 +188,10 @@ class MPQArchive
                 $this->hashTableOffset  = ($this->hashTableOffset & BLOCK_INDEX_MASK);
                 $this->blockTableOffset = ($this->blockTableOffset & BLOCK_INDEX_MASK);
 
+                // Check if the block size is bigger than the file
+                if (($this->blockTableOffset + ($this->blockTableSize*4)) > $this->filesize)
+                    $this->blockTableSize = (($this->filesize - $this->blockTableOffset) / 4) / 4;
+
                 $valid_header = ($this->hashTableOffset <= $this->filesize) && ($this->blockTableOffset <= $this->filesize);
                 $valid_header = ($valid_header) && ($this->hashTableOffset > 0) && ($this->blockTableOffset > 0);
 
