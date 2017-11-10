@@ -517,7 +517,7 @@ class MPQArchive
 
                 if ($try_gzip)
                 { 
-                    $decompressed = ($len < 3 ? false : gzinflate(substr($sector_data, 3, $len - 2)));
+                    $decompressed = ($len < 3 ? false : @gzinflate(substr($sector_data, 3, $len - 2)));
 
                     if (!$decompressed)
                     {
