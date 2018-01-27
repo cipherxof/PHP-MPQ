@@ -12,7 +12,7 @@ class MPQDebugger extends MPQArchive
     { 
         if ($this->mpq->debug) 
             if(strpos($message, '<pre>')!==FALSE||strpos($message, '<br/>')!==FALSE) 
-                echo $message; else echo $message.'<br/>';
+                echo $message; else echo $message."<br/>\n";
     }
 
     function hashTable()

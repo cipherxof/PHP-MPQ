@@ -201,6 +201,8 @@ class MPQArchive
                 $this->stream->setPosition($this->headerOffset + 4);
 
             }
+
+            $this->stream->setPosition($this->stream->fp + 0x200);
         }
 
         if (!$header_parsed)
@@ -451,7 +453,6 @@ class MPQArchive
             if ($flag_compressed)
             {
                 $compression_type = unpack("C", substr($sector_data, 0, 1))[1];  
-                $sector_trimmed   = substr($sector_data, 1);  
 
                 $this->debugger->write(sprintf("Found compresstion type: %d", $compression_type));
 
@@ -463,6 +464,8 @@ class MPQArchive
                         if (!$try_gzip)
                             $output .= $sector_data;
 
+                        $this->debugger->write(sprintf("Unrecognized compresstion type: %d", $compression_type));
+
                         break;
 
                     case MPQ_COMPRESSION_ZLIB:
@@ -470,7 +473,7 @@ class MPQArchive
                         break;
 
                     case MPQ_COMPRESSION_BZIP2:
-                        $decompressed = bzdecompress($sector_trimmed);      
+                        $decompressed = bzdecompress(substr($sector_data, 1));      
 
                         if ($decompressed < 0)
                         {
@@ -517,12 +520,12 @@ class MPQArchive
 
                 if ($try_gzip)
                 { 
-                    $decompressed = ($len < 3 ? false : gzinflate(substr($sector_data, 3, $len - 2)));
+                    $decompressed = ($len < 3 ? false : @gzinflate(substr($sector_data, 3, $len - 2)));
 
                     if (!$decompressed)
                     {
-                        $this->debugger->write("Failed to decompress with gzip");
-                        $output .= $sector_data;
+                        $this->debugger->write("Failed to decompress with gzip, appending sector data");
+                        $output .= substr($sector_data, 4, $len);
                     }
                     else
                     {
@@ -531,7 +534,6 @@ class MPQArchive
                     }
 
                 }
-
 
             }
             else 
@@ -543,7 +545,6 @@ class MPQArchive
         if (strlen($output) != $filesize) 
         {
             $this->debugger->write(sprintf("Decrypted/uncompressed filesize(%d) does not match original file size(%d)", strlen($output), $filesize));
-            return false;
         }
 
         return $output;
