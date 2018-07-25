@@ -40,7 +40,6 @@ class MPQReader
     public function readUInt8() 
     {
         $tmp = unpack("c", $this->readByte());
-        $this->fp += 1;
 
         return $tmp[1];
     }
@@ -48,7 +47,6 @@ class MPQReader
     public function readUInt16() 
     {
         $tmp = unpack("v", $this->readBytes(2));
-        $this->fp += 2;
 
         return $tmp[1];
     }
@@ -56,7 +54,6 @@ class MPQReader
     public function readUInt32() 
     {
         $tmp = unpack("V", $this->readBytes(4));
-        $this->fp += 4;
 
         return $tmp[1];
     }   

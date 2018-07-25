@@ -458,16 +458,6 @@ class MPQArchive
 
                 switch ($compression_type) 
                 {
-                    default:
-                        $try_gzip = ($block_size != $filesize);
-
-                        if (!$try_gzip)
-                            $output .= $sector_data;
-
-                        $this->debugger->write(sprintf("Unrecognized compresstion type: %d", $compression_type));
-
-                        break;
-
                     case MPQ_COMPRESSION_ZLIB:
                         $try_gzip = true;
                         break;
@@ -508,11 +498,9 @@ class MPQArchive
                     case MPQ_COMPRESSION_SPARSE:
                     case MPQ_COMPRESSION_SPARSE | MPQ_COMPRESSION_ZLIB:
                     case MPQ_COMPRESSION_SPARSE | MPQ_COMPRESSION_BZIP2:
-                        $try_gzip = $isWar3;
+                    default:
+                        $try_gzip = true;
                         $this->debugger->write(sprintf("Unsupported compression type: %d", $compression_type));
-
-                        if (!$try_gzip)
-                            $output .= $sector_data;
 
                         break;
 
@@ -522,10 +510,10 @@ class MPQArchive
                 { 
                     $decompressed = ($len < 3 ? false : @gzinflate(substr($sector_data, 3, $len - 2)));
 
-                    if (!$decompressed)
+                    if ($len >= strlen($decompressed) || !$decompressed)
                     {
                         $this->debugger->write("Failed to decompress with gzip, appending sector data");
-                        $output .= substr($sector_data, 4, $len);
+                        $output .= $sector_data;
                     }
                     else
                     {
