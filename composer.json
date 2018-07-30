@@ -1,0 +1,19 @@
+{
+    "name": "triggerhappy/mpq",
+    "description": "Handle the MPQ (MoPaQ) format natively from PHP with support for Warcraft III & Starcraft II.",
+    "keywords": ["phpmpq", "php-mpq", "mpq", "mopaq", "archive", "triggerhappy"],
+    "license": "GPL-3.0-only",
+    "type": "project",
+    "require": {
+		"php": ">=5.4",
+        "chdemko/sorted-collections": "1.0.*@dev"
+    },
+	"require-dev": {
+		"phpunit/phpunit": "5.2.*"
+    },
+	"autoload": {
+        "psr-4": {
+            "TriggerHappy\\MPQ\\": "src/"
+        }
+    }
+}
