@@ -62,7 +62,7 @@ class MPQEncryption
 
         for($i = 0; $i < $datalen; $i++) 
         {
-            $seed = uPlus($seed, self::$table[0x400 + ($key & 0xFF)]);
+            $seed = uPlus($seed, self::$CryptTable[0x400 + ($key & 0xFF)]);
             $ch = unpack("V", $data[$i * 4] . $data[($i * 4) + 1] . $data[($i * 4) + 2] . $data[($i * 4) + 3])[1] ^ (int)($key + $seed);
 
             $key = (((~$key) << 0x15) + 0x11111111) | (rShift($key,0x0B));
