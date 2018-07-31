@@ -6,8 +6,10 @@
 namespace TriggerHappy\MPQ;
 
 use TriggerHappy\MPQ\Debugger;
-use TriggerHappy\MPQ\MPQReader;
-use TriggerHappy\MPQ\Huffman;
+use TriggerHappy\MPQ\Stream\FileStream;
+use TriggerHappy\MPQ\Encryption\MPQEncryption;
+use TriggerHappy\MPQ\Compression\Huffman;
+use TriggerHappy\MPQ\Compression\ADPCM;
 
 const MPQ_HASH_TABLE_OFFSET     = 0;
 const MPQ_HASH_NAME_A           = 1;
@@ -15,6 +17,7 @@ const MPQ_HASH_NAME_B           = 2;
 const MPQ_HASH_FILE_KEY         = 3;
 const MPQ_HASH_ENTRY_EMPTY      = -1;
 const MPQ_HASH_ENTRY_DELETED    = -2;
+
 const MPQ_HEADER_SIZE_V1        = 0x20;
 
 const MPQ_FLAG_FILE         = 0x80000000;
@@ -49,7 +52,6 @@ class MPQArchive
     private $formatVersion;
     private $archiveSize, $headerSize;
 
-    protected $hashtable, $blocktable = NULL;
     protected $hashtableSize, $blocktableSize = 0;
     protected $hashtableOffset, $blocktableOffset = 0;
     protected $headerOffset = 0;
@@ -59,9 +61,9 @@ class MPQArchive
     private $stream;
 
     protected $debugger;
-    protected $debug;
+    public $debug;
 
-    public static $debugShowTables = false;
+    public static $DebugShowTables = false;
 
     function __construct($filename, $debug=false) 
     {
@@ -75,13 +77,12 @@ class MPQArchive
 
         // Initialize the cryptography table.
         // This runs only once per session.
-        if (!CryptTable::$table)
-            CryptTable::initCryptTable();
+        MPQEncryption::InitCryptTable();
 
         // Read the archive in binary and store the contents.
         $this->file = fopen($filename, 'rb');
         $this->filesize = filesize($filename);
-        $this->stream = new MPQReader($this->file);
+        $this->stream = new FileStream($this->file);
 
         // The filesize must be at least the minimum header size.
         if ($this->filesize < MPQ_HEADER_SIZE_V1)
@@ -112,12 +113,10 @@ class MPQArchive
         if ($this->file && get_resource_type($this->file) == 'stream') fclose($this->file); 
     }
 
-    public function isInitialized() { return $this->initialized === true; }
+    public function isInitialized() { return $this->initialized == true; }
+    public function getHeaderOffset() { return $this->headerOffset; }
     public function getFilename() { return $this->filename; }
     public function getFilesize($filename) { $r=self::getFileInfo($filename); return $r['filesize']; }
-    public function getHashTable() { return $this->hashtable; }
-    public function getBlockTable() { return $this->blocktable; }
-    public function getGameData(){ return $this->map; }
     public function hasFile($filename) { $r=self::getFileInfo($filename); return $r['filesize'] > 0; }
 
     public function parseHeader() 
@@ -134,26 +133,20 @@ class MPQArchive
 
         // Check if the file is a Warcraft III map.
         $buffer = $this->stream->readBytes(4);
+        $isWar3 = ($buffer == 'HM3W');
 
-        if ($buffer == 'HM3W')
-        {
-            $isWar3 = true;
-
-            $this->stream->setPosition(4);
-        }
-        else
-        {
-            $this->stream->setPosition(0);
-        }
+        // Reset buffer to begin searching for the MPQ header
+        $this->stream->setPosition(0);
 
         // Find and parse the MPQ header.
         while (!$header_parsed && $this->stream->fp < $end_of_search)
         {
+            $fp_start = $this->stream->fp;
             $buffer = $this->stream->readBytes(3);
 
             if ($buffer != "MPQ")
             {
-                $this->stream->readByte();
+                $this->stream->setPosition($fp_start + 0x200);
                 continue;
             }
 
@@ -170,10 +163,10 @@ class MPQArchive
                 $udata_size     = $this->stream->readUInt32();
 
                 $this->stream->setPosition($udata_start+4);
-
             }
             elseif (ord($buffer[3]) == 0x1A) // header (1Ah)
             {
+
                 $this->headerOffset = $this->stream->fp - 4;
             
                 $this->debugger->write(sprintf("Found header at %08X", $this->headerOffset));
@@ -206,7 +199,7 @@ class MPQArchive
 
             }
 
-            $this->stream->setPosition($this->stream->fp + 0x200);
+            $this->stream->setPosition($fp_start + 0x200);
         }
 
         if (!$header_parsed)
@@ -219,19 +212,19 @@ class MPQArchive
         // Write the decrypted hashtable to disk to reduce memory usage.
         $this->htFname = tempnam(sys_get_temp_dir(), "ht");
         file_put_contents($this->htFname, ""); // clear file
-        $this->htKey = CryptTable::hashString("(hash table)", MPQ_HASH_FILE_KEY);
+        $this->htKey = MPQEncryption::HashString("(hash table)", MPQ_HASH_FILE_KEY);
         $this->htFile = fopen($this->htFname, "a+");
         $this->stream->setPosition($this->hashTableOffset);
-        CryptTable::decryptStream($this->stream, $this->hashTableSize * 4, $this->htKey, $this->htFile);
+        MPQEncryption::DecryptStream($this->stream, $this->hashTableSize * 4, $this->htKey, $this->htFile);
         $this->debugger->hashTable();
 
         // and blocktable
         $this->btFname = tempnam(sys_get_temp_dir(), "bt");
         file_put_contents($this->btFname, ""); // clear file
-        $this->btKey = CryptTable::hashString("(block table)", MPQ_HASH_FILE_KEY);
+        $this->btKey = MPQEncryption::HashString("(block table)", MPQ_HASH_FILE_KEY);
         $this->btFile = fopen($this->btFname, "a+");
         $this->stream->setPosition($this->blockTableOffset);
-        CryptTable::decryptStream($this->stream, $this->blockTableSize * 4, $this->btKey, $this->btFile);
+        MPQEncryption::DecryptStream($this->stream, $this->blockTableSize * 4, $this->btKey, $this->btFile);
         $this->debugger->blockTable();
 
         // The archive is ready.
@@ -247,7 +240,7 @@ class MPQArchive
         fseek($this->htFile, $index*4);
         $val = fread($this->htFile, 4);
 
-        return (strlen($val) != 4 ? "" : unpack("V", $val)[1]);
+        return (strlen($val) != 4 ? $val : unpack("V", $val)[1]);
     }
 
     public function readBlocktable($index)
@@ -255,7 +248,7 @@ class MPQArchive
         fseek($this->btFile, $index*4);
         $val = fread($this->btFile, 4);
 
-        return (strlen($val) != 4 ? "" : unpack("V", $val)[1]);
+        return (strlen($val) != 4 ? $val : unpack("V", $val)[1]);
     }
 
     public function getFileInfo($filename)
@@ -266,9 +259,9 @@ class MPQArchive
             return false;
         }
 
-        $hash_a     = CryptTable::hashString($filename, MPQ_HASH_NAME_A);
-        $hash_b     = CryptTable::hashString($filename, MPQ_HASH_NAME_B);
-        $hash_start = CryptTable::hashString($filename, MPQ_HASH_TABLE_OFFSET) & ($this->hashTableSize - 1);
+        $hash_a     = MPQEncryption::HashString($filename, MPQ_HASH_NAME_A);
+        $hash_b     = MPQEncryption::HashString($filename, MPQ_HASH_NAME_B);
+        $hash_start = MPQEncryption::HashString($filename, MPQ_HASH_TABLE_OFFSET) & ($this->hashTableSize - 1);
         $block_size = -1;
 
         $x = $hash_start;
@@ -340,7 +333,7 @@ class MPQArchive
         if ($flag_encrypted)
         {
             $filename = basename(str_replace('\\', '/', $filename));
-            $crypt_key = CryptTable::hashString($filename, MPQ_HASH_FILE_KEY);
+            $crypt_key = MPQEncryption::HashString($filename, MPQ_HASH_FILE_KEY);
 
             // Fix the decryption key
             if ($flag_hEncrypted)
@@ -372,7 +365,7 @@ class MPQArchive
 
         // Decrypt the offsets if they are encrypted.
         if ($flag_encrypted)
-            $sector_offsets = CryptTable::decrypt($sector_offsets, uPlus($crypt_key, -1));
+            $sector_offsets = MPQEncryption::Decrypt($sector_offsets, $crypt_key - 1);
 
         $output = "";
 
@@ -406,7 +399,7 @@ class MPQArchive
                     $sector[] = $this->stream->readUInt32($this->file, $fp); // store it
 
                 // Decrypt the sector data and re-pack it.
-                $sector = CryptTable::decrypt($sector, (int)($crypt_key + $i));
+                $sector = MPQEncryption::Decrypt($sector, (int)($crypt_key + $i));
 
                 for($x=0; $x<count($sector); $x++)
                     $sector[$x] = pack("V", $sector[$x]);

@@ -1,8 +1,8 @@
 <?php
 
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Compression;
 
-use TriggerHappy\MPQ\ADPCMChannel;
+use TriggerHappy\MPQ\Stream\ByteBuffer;
 
 class ADPCM 
 {

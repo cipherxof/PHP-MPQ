@@ -1,8 +1,8 @@
 <?php
 
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Stream;
 
-class MPQReader
+class FileStream
 {
 
     public $fp;
@@ -12,7 +12,7 @@ class MPQReader
     {
         if ($openFile != null && get_resource_type($openFile) == 'file')
         {
-            throw new MPQException($this, "MPQReader must take a file handle.");
+            throw new \Exception("FileStream must take a file handle.");
         }
 
         $this->file = $openFile;
@@ -79,30 +79,37 @@ class MPQReader
         $num_byte++;
         return $tmp[1];
     }
+
     static function bytes($string, &$num_byte, $length) 
     {
         if (strlen($string) - $num_byte - $length < 0) 
             return false;
+
         $tmp = substr($string,$num_byte,$length);
         $num_byte += $length;
         return $tmp;
     }
+
     static function UInt8($string, &$num_byte) 
     {
         if (strlen($string) - $num_byte - 1 < 0)
             return false;
+
         $tmp = unpack("c",substr($string,$num_byte));
         $num_byte += 1;
         return $tmp[1];
     }
+
     static function UInt16($string, &$num_byte) 
     {
         if (strlen($string) - $num_byte - 2 < 0)
             return false;
+
         $tmp = unpack("v",substr($string,$num_byte,2));
         $num_byte += 2;
         return $tmp[1];
     }
+
     static function UInt32($string, &$num_byte) 
     {
         if (strlen($string) - $num_byte - 4 < 0)
@@ -111,6 +118,7 @@ class MPQReader
         $num_byte += 4;
         return $tmp[1];
     }
+
     static function String($string, &$num_byte) 
     {
         $out = "";

@@ -1,15 +1,17 @@
 <?php
 
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Encryption;
 
-class CryptTable
+class MPQEncryption
 {
-    public static $table;
+    public static $CryptTable;
 
-    static function initCryptTable() 
+    static function InitCryptTable() 
     {
-        if (!self::$table)
-            self::$table = array();
+        if (!self::$CryptTable)
+            self::$CryptTable = array();
+        else
+            return false;
 
         $seed = 0x00100001;
         $index1 = 0;
@@ -25,12 +27,12 @@ class CryptTable
                 $seed = (uPlus($seed * 125,3)) % 0x2AAAAB;
                 $temp2 = ($seed & 0xFFFF);
                 
-                self::$table[$index2] = ($temp1 | $temp2);
+                self::$CryptTable[$index2] = ($temp1 | $temp2);
             }
         }
     }
 
-    static function decrypt(&$data, $key) 
+    static function Decrypt(&$data, $key) 
     {
         $seed = ((0xEEEE << 16) | 0xEEEE);
 
@@ -38,7 +40,7 @@ class CryptTable
 
         for($i = 0;$i < $datalen;$i++) 
         {
-            $seed = uPlus($seed, self::$table[0x400 + ($key & 0xFF)]);
+            $seed = uPlus($seed, self::$CryptTable[0x400 + ($key & 0xFF)]);
             $ch = $data[$i] ^ (uPlus($key,$seed));
 
             $key = (uPlus(((~$key) << 0x15), 0x11111111)) | (rShift($key,0x0B));
@@ -49,33 +51,43 @@ class CryptTable
         return $data;
     }
 
-    static function decryptStream($stream, $datalen, $key, $outFile) 
+    static function DecryptStream($stream, $datalen, $key, $outFile) 
     {
         $seed = ((0xEEEE << 16) | 0xEEEE);
-
         $data = $stream->readBytes($datalen * 4);
 
-        $output = '';
+        $max = strlen($data);
+
+        $buffer = '';
+
         for($i = 0; $i < $datalen; $i++) 
         {
-            $seed = $seed + self::$table[0x400 + ($key & 0xFF)];
-            $ch = unpack("V", substr($data, $i * 4, 4))[1] ^ ($key + $seed);
+            $seed = (int)($seed + self::$CryptTable[0x400 + ($key & 0xFF)]);
+            $ch = unpack("V", $data[$i * 4] . $data[($i * 4) + 1] . $data[($i * 4) + 2] . $data[($i * 4) + 3])[1] ^ (int)($key + $seed);
 
             $key = (((~$key) << 0x15) + 0x11111111) | (rShift($key,0x0B));
             $seed = ($ch + $seed) + ($seed << 5) + 3;
 
             $val = ($ch & ((0xFFFF << 16) | 0xFFFF));
-            fwrite($outFile, pack("V", $val));
+            $buffer .= pack("V", $val);
+
+            if ($i % 0x200 == 0)
+            {
+                fwrite($outFile, $buffer);
+                $buffer = '';
+            }
         }
+
+        fwrite($outFile, $buffer);
     }
 
-    static function encrypt($data, $key) 
+    static function Encrypt($data, $key) 
     {
         $seed = ((0xEEEE << 16) | 0xEEEE);
         $datalen = count($data);
         for($i = 0;$i < $datalen;$i++) 
         {
-            $seed = uPlus($seed, self::$table[0x400 + ($key & 0xFF)]);
+            $seed = uPlus($seed, self::$CryptTable[0x400 + ($key & 0xFF)]);
             $ch = $data[$i] ^ (uPlus($key,$seed));
 
             $key = (uPlus(((~$key) << 0x15), 0x11111111)) | (rShift($key,0x0B));
@@ -85,7 +97,7 @@ class CryptTable
         return $data;
     }
 
-    static function hashString($string, $hashType) 
+    static function HashString($string, $hashType) 
     {
         $seed1 = 0x7FED7FED;
         $seed2 = ((0xEEEE << 16) | 0xEEEE);
@@ -95,7 +107,7 @@ class CryptTable
         {
             $next = ord(strtoupper(substr($string, $i, 1)));
 
-            $seed1 = self::$table[($hashType << 8) + $next] ^ (uPlus($seed1,$seed2));
+            $seed1 = self::$CryptTable[($hashType << 8) + $next] ^ (uPlus($seed1,$seed2));
             $seed2 = uPlus(uPlus(uPlus(uPlus($next,$seed1),$seed2),$seed2 << 5),3);
         }
         return $seed1;

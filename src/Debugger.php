@@ -1,7 +1,7 @@
 <?php
 namespace TriggerHappy\MPQ;
 
-class Debugger extends MPQArchive
+class Debugger
 {   
     private $mpq;
 
@@ -19,7 +19,7 @@ class Debugger extends MPQArchive
 
     function hashTable()
     {
-        if (!$this->mpq->debug || !MPQArchive::$debugShowTables)
+        if (!$this->mpq->debug || !MPQArchive::$DebugShowTables)
             return;
 
         $this->write("DEBUG: Hash table\n");
@@ -37,7 +37,7 @@ class Debugger extends MPQArchive
 
     function blockTable()
     {
-        if (!$this->mpq->debug || !MPQArchive::$debugShowTables)
+        if (!$this->mpq->debug || !MPQArchive::$DebugShowTables)
             return;
 
         $this->write("DEBUG: Block table\n");
@@ -46,7 +46,7 @@ class Debugger extends MPQArchive
         for ($i = 0;$i < $this->mpq->blockTableSize;$i++) 
         {   
             $block_index = $i * 4;
-            $block_offset = $this->mpq->readBlocktable($block_index) + $this->mpq->headerOffset;
+            $block_offset = $this->mpq->readBlocktable($block_index) + $this->mpq->getHeaderOffset();
             $block_size = $this->mpq->readBlocktable($block_index + 1);
             $filesize = $this->mpq->readBlocktable($block_index + 2);
             $flags = $this->mpq->readBlocktable($block_index + 3);
@@ -57,7 +57,7 @@ class Debugger extends MPQArchive
     // prints block table or hash table, $data is the data in an array of UInt32s
     public function printTable($data) 
     {
-        if (!$this->mpq->debug || !MPQArchive::$debugShowTables)
+        if (!$this->mpq->debug || !MPQArchive::$DebugShowTables)
             return;
 
         $this->write("Hash table: HashA, HashB, Language+platform, Fileblockindex\n");
@@ -68,7 +68,7 @@ class Debugger extends MPQArchive
         for ($i = 0; $i < $entries; $i++) 
         {
             $block_index = $i * 4;
-            $block_offset = $data[$block_index] + $this->mpq->headerOffset;
+            $block_offset = $data[$block_index] + $this->mpq->getHeaderOffset();
             $block_size = $data[$block_index + 1];
             $filesize = $data[$block_index + 2];
             $flags = $data[$block_index + 3];

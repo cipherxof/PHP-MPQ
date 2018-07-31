@@ -1,16 +1,16 @@
 <?php 
 
 /**
-*  Corresponding Class to test ByteBuffer class
+*  Corresponding Class to test FileStream class
 *
 *  @author TriggerHappy
 */
 
-class CryptTableTest extends PHPUnit_Framework_TestCase
+class FileStreamTest extends PHPUnit_Framework_TestCase
 {
     public function testForSyntaxError()
     {
-        $var = new TriggerHappy\MPQ\CryptTable();
+        $var = new TriggerHappy\MPQ\Stream\FileStream("");
         $this->assertTrue(is_object($var));
         unset($var);
     }

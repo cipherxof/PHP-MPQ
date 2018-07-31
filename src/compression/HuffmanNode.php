@@ -1,9 +1,8 @@
 <?php
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Compression;
 
 class HuffmanNode
 {
-
     public $parent;
     public $child;
     public $next;

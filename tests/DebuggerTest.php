@@ -1,7 +1,7 @@
 <?php 
 
 /**
-*  Corresponding Class to test ByteBuffer class
+*  Corresponding Class to test Debugger class
 *
 *  @author TriggerHappy
 */

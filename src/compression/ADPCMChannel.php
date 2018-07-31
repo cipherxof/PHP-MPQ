@@ -1,6 +1,6 @@
 <?php
 
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Compression;
 
 class ADPCMChannel 
 {

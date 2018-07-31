@@ -1,5 +1,5 @@
 <?php
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Stream;
 
 class ByteBuffer
 {

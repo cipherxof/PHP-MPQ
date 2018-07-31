@@ -10,7 +10,8 @@ Supported Archives:
 Supported Compressions:
 * Gzip
 * Bzip2
-* ADPCM/Huffman
+* IMA ADPCM (Mono/Stereo)
+* Huffman
 
 Demo: https://www.wc3maps.com/
 

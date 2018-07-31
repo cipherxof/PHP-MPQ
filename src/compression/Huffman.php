@@ -1,9 +1,9 @@
 <?php
 
-namespace TriggerHappy\MPQ;
+namespace TriggerHappy\MPQ\Compression;
 
-use TriggerHappy\MPQ\ByteBuffer;
-use TriggerHappy\MPQ\HuffmanNode;
+use TriggerHappy\MPQ\Stream\ByteBuffer;
+use TriggerHappy\MPQ\Compression\HuffmanNode;
 use chdemko\SortedCollection\TreeMap;
 
 class Huffman
